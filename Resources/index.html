@@ -1,0 +1,1709 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI功能测试</title>
+    <style>
+        :root {
+            --bg-color: #343541;
+            --panel-bg: #202123;
+            --card-bg: #444654;
+            --text-color: #ececf1;
+            --muted-color: #b6b6c3;
+            --input-bg: #40414f;
+            --border-color: #565869;
+            --accent: #10a37f;
+            --danger: #ff6b6b;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        header {
+            background-color: var(--panel-bg);
+            padding: 10px 16px;
+            border-bottom: 1px solid #4d4d4f;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex: 0 0 auto;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 0;
+        }
+
+        .title {
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .subtitle {
+            color: var(--muted-color);
+            font-size: 13px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        button {
+            font: inherit;
+        }
+
+        .btn {
+            border: 1px solid var(--border-color);
+            background: transparent;
+            color: var(--text-color);
+            padding: 6px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: white;
+        }
+
+        .btn-danger {
+            border-color: rgba(255, 107, 107, 0.6);
+            color: #ffd1d1;
+        }
+
+        .btn:disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
+        }
+
+        .settings-modal,
+        .question-modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+
+        .settings-modal.active,
+        .question-modal.active {
+            display: flex;
+        }
+
+        .settings-dialog,
+        .question-dialog {
+            background-color: var(--bg-color);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            width: min(960px, 100vw - 80px);
+            max-height: min(640px, 100vh - 80px);
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+        }
+
+        .question-dialog {
+            width: min(900px, 100vw - 80px);
+            max-height: calc(100vh - 80px);
+        }
+
+        .settings-dialog-header,
+        .question-dialog-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .settings-dialog-title,
+        .question-dialog-title {
+            font-weight: 700;
+        }
+
+        .settings-dialog-body {
+            flex: 1 1 auto;
+            display: grid;
+            grid-template-columns: 260px 1fr;
+            min-height: 0;
+        }
+
+        .question-dialog .settings-panel {
+            overflow: visible;
+        }
+
+        .settings-sidebar {
+            border-right: 1px solid var(--border-color);
+            padding: 12px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            min-width: 0;
+        }
+
+        .settings-sidebar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 4px;
+        }
+
+        .settings-sidebar-title {
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .settings-provider-list {
+            flex: 1 1 auto;
+            overflow: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-top: 4px;
+            margin-bottom: 8px;
+        }
+
+        .provider-item {
+            padding: 6px 8px;
+            border-radius: 6px;
+            border: 1px solid rgba(255,255,255,0.08);
+            font-size: 13px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 6px;
+        }
+
+        .provider-item.active {
+            border-color: rgba(16,163,127,0.9);
+            background: rgba(16,163,127,0.12);
+        }
+
+        .provider-item-name {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .provider-item-tag {
+            font-size: 11px;
+            color: var(--muted-color);
+            flex: 0 0 auto;
+        }
+
+        .settings-panel {
+            padding: 15px;
+            width: 100%;
+            box-sizing: border-box;
+            overflow: auto;
+            min-height: 0;
+        }
+
+        .settings-panel input {
+            width: 100%;
+            padding: 8px;
+            margin-top: 6px;
+            margin-bottom: 12px;
+            background-color: var(--input-bg);
+            border: 1px solid var(--border-color);
+            color: white;
+            border-radius: 6px;
+            box-sizing: border-box;
+        }
+
+        .settings-panel textarea,
+        .settings-panel select {
+            width: 100%;
+            padding: 8px;
+            margin-top: 6px;
+            margin-bottom: 12px;
+            background-color: var(--input-bg);
+            border: 1px solid var(--border-color);
+            color: white;
+            border-radius: 6px;
+            box-sizing: border-box;
+            font: inherit;
+        }
+
+        .settings-panel textarea {
+            min-height: 84px;
+            resize: vertical;
+            line-height: 1.4;
+            white-space: pre-wrap;
+        }
+
+        .inline-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .inline-row > * {
+            flex: 1 1 auto;
+        }
+
+        .model-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 6px;
+            margin-bottom: 12px;
+        }
+
+        .model-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 8px;
+            border: 1px solid rgba(255,255,255,0.14);
+            border-radius: 999px;
+            background: rgba(0,0,0,0.12);
+            font-size: 12px;
+        }
+
+        .model-chip button {
+            border: 0;
+            background: transparent;
+            color: var(--muted-color);
+            cursor: pointer;
+            padding: 0 2px;
+            line-height: 1;
+        }
+
+        .layout {
+            flex: 1 1 auto;
+            display: grid;
+            grid-template-columns: 320px 1fr 360px;
+            min-height: 0;
+        }
+
+        .left {
+            border-right: 1px solid rgba(0,0,0,0.2);
+            background: #2f303a;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .left-header {
+            padding: 12px 12px 8px 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+
+        .left-header h2 {
+            margin: 0;
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        .question-list {
+            overflow: auto;
+            padding: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            min-height: 0;
+        }
+
+        .q-item {
+            border: 1px solid rgba(255,255,255,0.08);
+            background: rgba(0,0,0,0.08);
+            border-radius: 10px;
+            padding: 10px 10px;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .q-item:hover {
+            border-color: rgba(255,255,255,0.18);
+        }
+
+        .q-item.active {
+            border-color: rgba(16,163,127,0.9);
+            background: rgba(16,163,127,0.12);
+        }
+
+        .q-title {
+            font-weight: 700;
+            font-size: 13px;
+            line-height: 1.2;
+        }
+
+        .q-meta {
+            color: var(--muted-color);
+            font-size: 12px;
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .main {
+            min-height: 0;
+            display: grid;
+            grid-template-rows: 1fr 1fr;
+            gap: 12px;
+            padding: 12px;
+            box-sizing: border-box;
+        }
+
+        .right {
+            border-left: 1px solid rgba(0,0,0,0.2);
+            background: #2f303a;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            padding: 12px;
+            box-sizing: border-box;
+            overflow: hidden;
+            gap: 12px;
+        }
+
+        .right .card {
+            flex: 1 1 auto;
+        }
+
+        .right .card-body {
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+
+        .meta-block {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            flex: 1 1 auto;
+            min-height: 0;
+        }
+
+        .meta-section {
+            border: 1px solid rgba(255,255,255,0.10);
+            background: rgba(0,0,0,0.10);
+            border-radius: 12px;
+            padding: 10px 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            min-height: 0;
+            flex: 1 1 auto;
+        }
+
+        .meta-section .answer-pre {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow: auto;
+        }
+
+        .meta-section .attachments-list {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow: auto;
+        }
+
+        .meta-label {
+            color: var(--muted-color);
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .attachments-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .attachments-list li {
+            border: 1px solid rgba(255,255,255,0.10);
+            background: rgba(0,0,0,0.10);
+            border-radius: 8px;
+            padding: 8px 10px;
+            font-size: 13px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 12px;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .card-header {
+            padding: 10px 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            border-bottom: 1px solid rgba(0,0,0,0.18);
+            background: rgba(0,0,0,0.08);
+            flex: 0 0 auto;
+        }
+
+        .card-header h3 {
+            margin: 0;
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        .card-body {
+            padding: 12px;
+            overflow: auto;
+            min-height: 0;
+            white-space: pre-wrap;
+            overflow-wrap: break-word;
+            line-height: 1.6;
+        }
+
+        .reasoning-details {
+            margin: 0 0 10px 0;
+            border: 1px solid rgba(255,255,255,0.10);
+            border-radius: 10px;
+            padding: 8px 10px;
+            background: rgba(0,0,0,0.10);
+        }
+
+        .reasoning-details > summary {
+            cursor: pointer;
+            user-select: none;
+            color: var(--muted-color);
+            font-size: 12px;
+            margin: 0;
+        }
+
+        .answer-pre {
+            margin: 0;
+            white-space: pre-wrap;
+            overflow-wrap: break-word;
+            font-family: inherit;
+        }
+
+        .placeholder {
+            color: var(--muted-color);
+        }
+
+        .toolbar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .status {
+            color: var(--muted-color);
+            font-size: 12px;
+        }
+
+        .error {
+            color: #ffd1d1;
+            background: rgba(255, 0, 0, 0.12);
+            border: 1px solid rgba(255, 107, 107, 0.4);
+            padding: 10px 12px;
+            border-radius: 10px;
+            margin: 10px 12px 0 12px;
+            display: none;
+        }
+
+        @media (max-width: 960px) {
+            .settings-dialog {
+                width: min(640px, 100vw - 32px);
+                max-height: min(580px, 100vh - 32px);
+            }
+
+            .settings-dialog-body {
+                grid-template-columns: 1fr;
+            }
+
+            .settings-sidebar {
+                border-right: 0;
+                border-bottom: 1px solid var(--border-color);
+                flex-direction: column;
+            }
+
+            .layout {
+                grid-template-columns: 1fr;
+            }
+            .left {
+                display: none;
+            }
+            .right {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <div class="title">AI功能测试</div>
+            <div class="subtitle" id="header-subtitle">选择左侧问题并运行测试</div>
+        </div>
+        <div style="display:flex; align-items:center; gap:10px;">
+            <button class="btn" onclick="toggleSettings()">⚙️ 设置</button>
+        </div>
+    </header>
+
+    <div id="settings-modal" class="settings-modal">
+        <div class="settings-dialog">
+            <div class="settings-dialog-header">
+                <div class="settings-dialog-title">服务商配置</div>
+                <button class="btn" onclick="toggleSettings()">关闭</button>
+            </div>
+            <div class="settings-dialog-body">
+                <aside class="settings-sidebar">
+                    <div class="settings-sidebar-header">
+                        <div class="settings-sidebar-title">服务商列表</div>
+                        <button class="btn btn-primary" onclick="newProvider()" style="flex:0 0 auto; white-space:nowrap;">新建</button>
+                    </div>
+                    <div id="provider-list" class="settings-provider-list"></div>
+                    <button class="btn btn-danger" onclick="deleteProvider()" style="flex:0 0 auto; white-space:nowrap;">删除当前服务商</button>
+                    <select id="provider-manage-select" style="display:none;"></select>
+                </aside>
+                <main class="settings-panel">
+                    <label>名称</label>
+                    <input type="text" id="provider-name" placeholder="例如：OpenAI / Azure / 本地模型">
+
+                    <label>Host（转发目标，不含 /v1）</label>
+                    <input type="text" id="provider-host" placeholder="例如：https://api.openai.com 或 http://127.0.0.1:8080">
+
+                    <label>API Key</label>
+                    <input type="password" id="provider-api-key" placeholder="sk-...">
+
+                    <label>可用模型</label>
+                    <div class="inline-row">
+                        <select id="provider-model-select"></select>
+                        <button class="btn" onclick="fetchProviderModels()" style="flex:0 0 auto; white-space:nowrap;">查询</button>
+                        <button class="btn btn-primary" onclick="addProviderModel()" style="flex:0 0 auto; white-space:nowrap;">添加</button>
+                    </div>
+
+                    <label>已添加模型</label>
+                    <div id="provider-models-list" class="model-list"></div>
+
+                    <button class="btn btn-primary" onclick="saveProvider()" style="width:100%;">保存</button>
+                </main>
+            </div>
+        </div>
+    </div>
+
+    <div id="question-modal" class="question-modal">
+        <div class="question-dialog">
+            <div class="question-dialog-header">
+                <div class="question-dialog-title">新增问题</div>
+                <button class="btn" onclick="toggleQuestionModal(false)">关闭</button>
+            </div>
+            <div class="settings-dialog-body" style="grid-template-columns: 1fr; overflow:hidden; min-height:0;">
+                <main class="settings-panel">
+                    <label>标题</label>
+                    <input type="text" id="question-title" placeholder="例如：基础数学与格式">
+
+                    <label>内容</label>
+                    <textarea id="question-content-input" placeholder="请输入问题内容"></textarea>
+
+                    <label>正确答案</label>
+                    <textarea id="question-answer-input" placeholder="可选：用于人工核对或后续扩展"></textarea>
+
+                    <label>评分标准</label>
+                    <textarea id="question-scoring-input" placeholder="可选：用于评判模型回答"></textarea>
+
+                    <label>附件</label>
+                    <input type="file" id="question-attachments" multiple onchange="updateQuestionAttachmentsHint()">
+                    <div class="status" id="question-attachments-hint" style="margin-top:0; margin-bottom:12px;"></div>
+
+                    <button class="btn btn-primary" id="question-submit-btn" onclick="submitAddQuestion()" style="width:100%;">提交</button>
+                </main>
+            </div>
+        </div>
+    </div>
+
+    <div class="layout">
+        <aside class="left">
+            <div class="left-header">
+                <h2>问题列表</h2>
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <button class="btn btn-primary" onclick="openAddQuestionDialog()" title="新增问题">新增</button>
+                    <button class="btn btn-danger" onclick="resetAnswer()" title="清空回答">清空</button>
+                </div>
+            </div>
+            <div class="question-list" id="question-list"></div>
+        </aside>
+
+        <main class="main">
+            <section class="card">
+                <div class="card-header">
+                    <h3>问题内容</h3>
+                    <div class="toolbar">
+                        <select id="provider-select" class="btn" style="padding:6px 10px;" onchange="onProviderChanged()"></select>
+                        <select id="model-input" class="btn" style="padding:6px 10px; width:220px;"></select>
+                        <span class="status" id="question-status"></span>
+                        <button class="btn btn-primary" id="run-btn" onclick="runSelectedQuestion()" disabled>运行</button>
+                    </div>
+                </div>
+                <div class="error" id="question-error"></div>
+                <div class="card-body" id="question-content">
+                    <span class="placeholder">未选择问题</span>
+                </div>
+            </section>
+
+            <section class="card">
+                <div class="card-header">
+                    <h3>模型回答</h3>
+                    <div class="toolbar">
+                        <span class="status" id="answer-status"></span>
+                        <button class="btn" id="stop-btn" onclick="stopRun()" disabled>停止</button>
+                    </div>
+                </div>
+                <div class="error" id="answer-error"></div>
+                <div class="card-body" id="answer-content"></div>
+            </section>
+        </main>
+
+        <aside class="right">
+            <section class="card">
+                <div class="card-header">
+                    <h3>参考信息</h3>
+                </div>
+                <div class="card-body">
+                    <div class="meta-block">
+                        <div class="meta-section">
+                            <div class="meta-label">正确答案</div>
+                            <pre class="answer-pre placeholder" id="question-answer-view">未选择问题</pre>
+                        </div>
+                        <div class="meta-section">
+                            <div class="meta-label">评分标准</div>
+                            <pre class="answer-pre placeholder" id="question-scoring-view">未选择问题</pre>
+                        </div>
+                        <div class="meta-section">
+                            <div class="meta-label">附件</div>
+                            <ul class="attachments-list" id="question-attachments-view">
+                                <li class="placeholder">未选择问题</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </aside>
+    </div>
+
+    <script>
+        let QUESTIONS = [];
+
+        let selectedQuestionId = null;
+        let activeRun = null;
+        let isRunning = false;
+        let providers = [];
+        let selectedProviderId = null;
+        let availableModelsByProviderId = {};
+
+        function qs(id) {
+            return document.getElementById(id);
+        }
+
+        function setPreWithPlaceholder(el, value, placeholderText) {
+            if (!el) return;
+            const raw = typeof value === 'string' ? value : '';
+            if (raw.trim()) {
+                el.classList.remove('placeholder');
+                el.textContent = raw;
+            } else {
+                el.classList.add('placeholder');
+                el.textContent = placeholderText;
+            }
+        }
+
+        function renderQuestionReferencePanel(q) {
+            const answerEl = qs('question-answer-view');
+            const scoringEl = qs('question-scoring-view');
+            const attachmentsEl = qs('question-attachments-view');
+
+            if (!q) {
+                setPreWithPlaceholder(answerEl, '', '未选择问题');
+                setPreWithPlaceholder(scoringEl, '', '未选择问题');
+                if (attachmentsEl) {
+                    attachmentsEl.innerHTML = '<li class="placeholder">未选择问题</li>';
+                }
+                return;
+            }
+
+            setPreWithPlaceholder(answerEl, q.answer, '未配置');
+            setPreWithPlaceholder(scoringEl, q.scoring, '未配置');
+
+            const attachments = Array.isArray(q.attachments) ? q.attachments : [];
+            if (!attachmentsEl) return;
+            attachmentsEl.innerHTML = '';
+            if (!attachments.length) {
+                attachmentsEl.innerHTML = '<li class="placeholder">未配置</li>';
+                return;
+            }
+
+            attachments.forEach((a, idx) => {
+                let name = '';
+                if (typeof a === 'string') {
+                    name = a;
+                } else if (a && typeof a === 'object') {
+                    if (typeof a.fileName === 'string') name = a.fileName;
+                    else if (typeof a.name === 'string') name = a.name;
+                }
+                name = (name || '').trim() || `未命名附件 ${idx + 1}`;
+
+                const li = document.createElement('li');
+                li.textContent = name;
+                attachmentsEl.appendChild(li);
+            });
+        }
+
+        window.onload = async function() {
+            await loadProviders();
+            await loadQuestions();
+            renderQuestionList();
+            if (QUESTIONS.length > 0) {
+                selectQuestion(QUESTIONS[0].id);
+            } else {
+                renderSelection(null);
+            }
+        };
+
+        function toggleSettings() {
+            const modal = qs('settings-modal');
+            if (!modal) return;
+            modal.classList.toggle('active');
+        }
+
+        function toggleQuestionModal(open) {
+            const modal = qs('question-modal');
+            if (!modal) return;
+            if (typeof open === 'boolean') {
+                modal.classList.toggle('active', open);
+            } else {
+                modal.classList.toggle('active');
+            }
+        }
+
+        function openAddQuestionDialog() {
+            qs('question-title').value = '';
+            qs('question-content-input').value = '';
+            qs('question-answer-input').value = '';
+            qs('question-scoring-input').value = '';
+            const fileInput = qs('question-attachments');
+            if (fileInput) fileInput.value = '';
+            updateQuestionAttachmentsHint();
+            toggleQuestionModal(true);
+        }
+
+        function updateQuestionAttachmentsHint() {
+            const hint = qs('question-attachments-hint');
+            const fileInput = qs('question-attachments');
+            if (!hint || !fileInput) return;
+            const count = fileInput.files ? fileInput.files.length : 0;
+            hint.textContent = count > 0 ? `已选择 ${count} 个附件` : '';
+        }
+
+        async function loadQuestions() {
+            try {
+                const response = await fetch('/api/question/list', { method: 'GET' });
+                if (!response.ok) {
+                    const text = await response.text().catch(() => '');
+                    throw new Error(`HTTP Error: ${response.status}${text ? `\n${text}` : ''}`);
+                }
+
+                const json = await response.json().catch(() => null);
+                const list = Array.isArray(json?.data) ? json.data : [];
+                QUESTIONS = list
+                    .filter(x => x && typeof x === 'object')
+                    .map(x => ({
+                        id: String(x.id || '').trim(),
+                        title: String(x.title || '').trim(),
+                        content: String(x.content || '').trim(),
+                        answer: typeof x.answer === 'string' ? x.answer : '',
+                        scoring: typeof x.scoring === 'string' ? x.scoring : '',
+                        attachments: Array.isArray(x.attachments) ? x.attachments : [],
+                        answers: x.answers && typeof x.answers === 'object' && !Array.isArray(x.answers) ? x.answers : {}
+                    }))
+                    .filter(x => x.id && x.title && x.content);
+            } catch {
+                QUESTIONS = [];
+            }
+        }
+
+        function readFileAsDataUrl(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(String(reader.result || ''));
+                reader.onerror = () => reject(reader.error || new Error('Failed to read file.'));
+                reader.readAsDataURL(file);
+            });
+        }
+
+        async function submitAddQuestion() {
+            const submitBtn = qs('question-submit-btn');
+            if (submitBtn) submitBtn.disabled = true;
+
+            try {
+                const title = (qs('question-title').value || '').trim();
+                const content = (qs('question-content-input').value || '').trim();
+                const answer = (qs('question-answer-input').value || '').trim();
+                const scoring = (qs('question-scoring-input').value || '').trim();
+                const fileInput = qs('question-attachments');
+
+                if (!title || !content) {
+                    alert('请填写标题与内容');
+                    return;
+                }
+
+                const attachments = [];
+                const files = fileInput?.files ? Array.from(fileInput.files) : [];
+                for (const f of files) {
+                    const dataUrl = await readFileAsDataUrl(f);
+                    const commaIndex = dataUrl.indexOf(',');
+                    const base64 = commaIndex >= 0 ? dataUrl.slice(commaIndex + 1) : '';
+                    attachments.push({
+                        fileName: f.name,
+                        contentType: f.type || 'application/octet-stream',
+                        base64: base64
+                    });
+                }
+
+                const payload = {
+                    title,
+                    content,
+                    answer,
+                    scoring,
+                    attachments
+                };
+
+                const response = await fetch('/api/question/add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    const text = await response.text().catch(() => '');
+                    throw new Error(text || `HTTP ${response.status}`);
+                }
+
+                const json = await response.json().catch(() => null);
+                const newId = typeof json?.id === 'string' ? json.id : null;
+
+                await loadQuestions();
+                renderQuestionList();
+                if (newId && QUESTIONS.some(x => x.id === newId)) {
+                    selectQuestion(newId);
+                } else if (QUESTIONS.length > 0) {
+                    selectQuestion(QUESTIONS[0].id);
+                } else {
+                    renderSelection(null);
+                }
+                toggleQuestionModal(false);
+            } catch (e) {
+                alert(`提交失败: ${e.message ?? String(e)}`);
+            } finally {
+                if (submitBtn) submitBtn.disabled = false;
+            }
+        }
+
+        async function loadProviders() {
+            const config = await fetchConfig();
+            providers = Array.isArray(config.providers) ? config.providers : [];
+
+            const requestedProviderId = typeof config.selectedProviderId === 'string' ? config.selectedProviderId : null;
+            if (requestedProviderId && providers.some(p => p.id === requestedProviderId)) {
+                selectedProviderId = requestedProviderId;
+            } else {
+                selectedProviderId = providers[0]?.id ?? null;
+            }
+
+            renderProviderSelectors();
+            qs('provider-manage-select').onchange = onProviderManageChanged;
+            syncProviderEditorFromSelection();
+            renderProviderModelSelect();
+
+            const selectedModel = typeof config.selectedModel === 'string' ? config.selectedModel : '';
+            const provider = getSelectedProvider();
+            const providerModels = Array.isArray(provider?.models) ? provider.models : [];
+            let desiredModel = selectedModel.trim();
+            if (providerModels.length) {
+                if (!desiredModel || !providerModels.includes(desiredModel)) {
+                    desiredModel = providerModels[0] || '';
+                }
+            }
+            if (!desiredModel) desiredModel = 'gpt-4o-mini';
+            syncModelDatalist(desiredModel);
+            qs('model-input').onchange = () => {
+                persistConfig().catch(() => {});
+                renderSavedAnswer();
+            };
+        }
+
+        async function fetchConfig() {
+            try {
+                const response = await fetch('/api/config/get', { method: 'GET' });
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                const json = await response.json();
+                return json && typeof json === 'object' ? json : {};
+            } catch {
+                return { providers: [], selectedProviderId: null, selectedModel: null };
+            }
+        }
+
+        async function persistConfig() {
+            const model = (qs('model-input').value || '').trim();
+            const payload = {
+                providers,
+                selectedProviderId,
+                selectedModel: model || null
+            };
+
+            const response = await fetch('/api/config/set', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                const text = await response.text().catch(() => '');
+                throw new Error(text || `HTTP ${response.status}`);
+            }
+        }
+
+        function getSelectedProvider() {
+            if (!selectedProviderId) return null;
+            return providers.find(p => p.id === selectedProviderId) ?? null;
+        }
+
+        function renderProviderSelectors() {
+            const runSelect = qs('provider-select');
+            const manageSelect = qs('provider-manage-select');
+            runSelect.innerHTML = '';
+            manageSelect.innerHTML = '';
+
+            if (providers.length === 0) {
+                const opt = document.createElement('option');
+                opt.value = '';
+                opt.textContent = '未配置服务商';
+                runSelect.appendChild(opt);
+                const opt2 = opt.cloneNode(true);
+                manageSelect.appendChild(opt2);
+                runSelect.value = '';
+                manageSelect.value = '';
+                renderProviderSidebarList();
+                return;
+            }
+
+            for (const p of providers) {
+                const o1 = document.createElement('option');
+                o1.value = p.id;
+                o1.textContent = p.name || p.host || p.id;
+                runSelect.appendChild(o1);
+
+                const o2 = document.createElement('option');
+                o2.value = p.id;
+                o2.textContent = p.name || p.host || p.id;
+                manageSelect.appendChild(o2);
+            }
+
+            runSelect.value = selectedProviderId ?? providers[0].id;
+            manageSelect.value = selectedProviderId ?? providers[0].id;
+            renderProviderSidebarList();
+        }
+
+        async function onProviderChanged() {
+            const runSelect = qs('provider-select');
+            selectedProviderId = runSelect.value || null;
+            qs('provider-manage-select').value = selectedProviderId || '';
+            syncProviderEditorFromSelection();
+            syncModelDatalist('');
+            renderProviderModelSelect();
+            renderSavedAnswer();
+            try {
+                await persistConfig();
+            } catch {}
+        }
+
+        async function onProviderManageChanged() {
+            const manageSelect = qs('provider-manage-select');
+            selectedProviderId = manageSelect.value || null;
+            qs('provider-select').value = selectedProviderId || '';
+            syncProviderEditorFromSelection();
+            syncModelDatalist('');
+            renderProviderModelSelect();
+            renderSavedAnswer();
+            try {
+                await persistConfig();
+            } catch {}
+        }
+
+        function syncProviderEditorFromSelection() {
+            const provider = getSelectedProvider();
+            if (!provider) {
+                qs('provider-name').value = '';
+                qs('provider-host').value = '';
+                qs('provider-api-key').value = '';
+                renderProviderModelsList();
+                return;
+            }
+            qs('provider-name').value = provider.name || '';
+            qs('provider-host').value = provider.host || '';
+            qs('provider-api-key').value = provider.apiKey || '';
+            renderProviderModelsList();
+        }
+
+        async function newProvider() {
+            const p = {
+                id: `p_${Date.now()}`,
+                name: '新服务商',
+                host: '',
+                apiKey: '',
+                models: []
+            };
+            providers.unshift(p);
+            selectedProviderId = p.id;
+            renderProviderSelectors();
+            syncProviderEditorFromSelection();
+            syncModelDatalist('');
+            renderProviderModelSelect();
+            try {
+                await persistConfig();
+            } catch {}
+        }
+
+        async function saveProvider() {
+            if (!selectedProviderId) {
+                await newProvider();
+            }
+
+            const provider = getSelectedProvider();
+            if (!provider) return;
+
+            const name = qs('provider-name').value.trim();
+            const host = qs('provider-host').value.trim();
+            const apiKey = qs('provider-api-key').value.trim();
+
+            provider.name = name || provider.name || host || '未命名服务商';
+            provider.host = host;
+            provider.apiKey = apiKey;
+            provider.models = Array.isArray(provider.models) ? provider.models : [];
+
+            renderProviderSelectors();
+            syncModelDatalist(qs('model-input')?.value || '');
+            renderProviderModelsList();
+            try {
+                await persistConfig();
+                alert('配置已保存');
+            } catch (e) {
+                alert(`保存失败: ${e.message ?? String(e)}`);
+            }
+        }
+
+        async function deleteProvider() {
+            if (!selectedProviderId) return;
+            const idx = providers.findIndex(p => p.id === selectedProviderId);
+            if (idx < 0) return;
+            providers.splice(idx, 1);
+            selectedProviderId = providers[0]?.id ?? null;
+            renderProviderSelectors();
+            syncProviderEditorFromSelection();
+            syncModelDatalist('');
+            renderProviderModelSelect();
+            try {
+                await persistConfig();
+            } catch {}
+        }
+
+        function renderProviderSidebarList() {
+            const list = qs('provider-list');
+            if (!list) return;
+            list.innerHTML = '';
+
+            if (providers.length === 0) {
+                const empty = document.createElement('div');
+                empty.style.fontSize = '12px';
+                empty.style.color = 'var(--muted-color)';
+                empty.textContent = '暂无服务商，请点击“新建”。';
+                list.appendChild(empty);
+                return;
+            }
+
+            for (const p of providers) {
+                const item = document.createElement('div');
+                item.className = 'provider-item';
+                if (p.id === selectedProviderId) {
+                    item.classList.add('active');
+                }
+                item.dataset.pid = p.id;
+
+                const nameSpan = document.createElement('div');
+                nameSpan.className = 'provider-item-name';
+                nameSpan.textContent = p.name || p.host || p.id;
+
+                const tagSpan = document.createElement('div');
+                tagSpan.className = 'provider-item-tag';
+                if (p.host) {
+                    try {
+                        tagSpan.textContent = p.host.startsWith('http') ? new URL(p.host).host : p.host;
+                    } catch {
+                        tagSpan.textContent = p.host;
+                    }
+                } else {
+                    tagSpan.textContent = '';
+                }
+
+                item.appendChild(nameSpan);
+                item.appendChild(tagSpan);
+                item.onclick = () => {
+                    selectedProviderId = p.id;
+                    qs('provider-select').value = selectedProviderId || '';
+                    qs('provider-manage-select').value = selectedProviderId || '';
+                    syncProviderEditorFromSelection();
+                    syncModelDatalist();
+                    renderProviderModelSelect();
+                    renderProviderSidebarList();
+                    renderSavedAnswer();
+                    persistConfig().catch(() => {});
+                };
+
+                list.appendChild(item);
+            }
+        }
+
+        function getAvailableModelsForSelectedProvider() {
+            if (!selectedProviderId) return [];
+            const list = availableModelsByProviderId[selectedProviderId];
+            return Array.isArray(list) ? list : [];
+        }
+
+        function renderProviderModelSelect() {
+            const select = qs('provider-model-select');
+            if (!select) return;
+            select.innerHTML = '';
+
+            const provider = getSelectedProvider();
+            if (!provider) {
+                const opt = document.createElement('option');
+                opt.value = '';
+                opt.textContent = '未配置服务商';
+                select.appendChild(opt);
+                select.value = '';
+                return;
+            }
+
+            const models = getAvailableModelsForSelectedProvider();
+            if (!models.length) {
+                const opt = document.createElement('option');
+                opt.value = '';
+                opt.textContent = '点击“查询”获取模型列表';
+                select.appendChild(opt);
+                select.value = '';
+                return;
+            }
+
+            for (const id of models) {
+                const opt = document.createElement('option');
+                opt.value = id;
+                opt.textContent = id;
+                select.appendChild(opt);
+            }
+
+            select.value = models[0] || '';
+        }
+
+        function renderProviderModelsList() {
+            const container = qs('provider-models-list');
+            if (!container) return;
+            container.innerHTML = '';
+
+            const provider = getSelectedProvider();
+            const models = Array.isArray(provider?.models) ? provider.models : [];
+            if (!models.length) {
+                container.textContent = '未添加模型';
+                return;
+            }
+
+            for (const m of models) {
+                const chip = document.createElement('div');
+                chip.className = 'model-chip';
+                const label = document.createElement('span');
+                label.textContent = m;
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.textContent = '×';
+                btn.onclick = () => removeProviderModel(m);
+                chip.appendChild(label);
+                chip.appendChild(btn);
+                container.appendChild(chip);
+            }
+        }
+
+        function addProviderModel() {
+            const provider = getSelectedProvider();
+            if (!provider) return;
+            const select = qs('provider-model-select');
+            const modelId = (select?.value || '').trim();
+            if (!modelId) return;
+
+            const current = Array.isArray(provider.models) ? provider.models : [];
+            if (current.includes(modelId)) return;
+
+            current.push(modelId);
+            current.sort((a, b) => a.localeCompare(b));
+            provider.models = current;
+            syncModelDatalist(qs('model-input')?.value || '');
+            renderProviderModelsList();
+
+            const modelInput = qs('model-input');
+            if (modelInput && !String(modelInput.value || '').trim()) modelInput.value = modelId;
+        }
+
+        function removeProviderModel(modelId) {
+            const provider = getSelectedProvider();
+            if (!provider) return;
+            const current = Array.isArray(provider.models) ? provider.models : [];
+            provider.models = current.filter(x => x !== modelId);
+            syncModelDatalist(qs('model-input')?.value || '');
+            renderProviderModelsList();
+        }
+
+        async function fetchProviderModels() {
+            try {
+                const provider = getSelectedProvider();
+                if (!provider) {
+                    alert('请先在设置中配置服务商');
+                    return;
+                }
+                if (!provider.host || !provider.host.trim()) {
+                    alert('请先在设置中填写 Host');
+                    return;
+                }
+                if (!provider.apiKey || !provider.apiKey.trim()) {
+                    alert('请先在设置中填写 API Key');
+                    return;
+                }
+
+                const response = await fetch('/api/model/list', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${provider.apiKey}`
+                    },
+                    body: JSON.stringify({ host: provider.host })
+                });
+
+                if (!response.ok) {
+                    const text = await response.text().catch(() => '');
+                    throw new Error(`HTTP Error: ${response.status}${text ? `\n${text}` : ''}`);
+                }
+
+                const json = await response.json().catch(() => null);
+                const list = Array.isArray(json?.data) ? json.data : [];
+                const ids = list.map(x => x?.id).filter(x => typeof x === 'string' && x.trim()).map(x => x.trim());
+                ids.sort((a, b) => a.localeCompare(b));
+                if (selectedProviderId) {
+                    availableModelsByProviderId[selectedProviderId] = ids;
+                }
+                renderProviderModelSelect();
+            } catch (e) {
+                alert(`查询模型失败: ${e.message ?? String(e)}`);
+            }
+        }
+
+        function syncModelDatalist(preferredModel) {
+            const select = qs('model-input');
+            if (!select) return;
+
+            const provider = getSelectedProvider();
+            const models = Array.isArray(provider?.models) ? provider.models : [];
+            const desired = typeof preferredModel === 'string' ? preferredModel.trim() : '';
+
+            select.innerHTML = '';
+
+            if (models.length === 0) {
+                if (desired) {
+                    const opt = document.createElement('option');
+                    opt.value = desired;
+                    opt.textContent = desired;
+                    select.appendChild(opt);
+                    select.value = desired;
+                } else {
+                    const opt = document.createElement('option');
+                    opt.value = '';
+                    opt.textContent = '未添加模型';
+                    select.appendChild(opt);
+                    select.value = '';
+                }
+                return;
+            }
+
+            for (const m of models) {
+                const opt = document.createElement('option');
+                opt.value = m;
+                opt.textContent = m;
+                select.appendChild(opt);
+            }
+
+            if (desired && models.includes(desired)) {
+                select.value = desired;
+            } else {
+                select.value = models[0] || '';
+            }
+        }
+
+        function renderQuestionList() {
+            const list = qs('question-list');
+            list.innerHTML = '';
+            for (const q of QUESTIONS) {
+                const item = document.createElement('div');
+                item.className = 'q-item';
+                item.dataset.qid = q.id;
+                item.onclick = () => selectQuestion(q.id);
+                const title = document.createElement('div');
+                title.className = 'q-title';
+                title.textContent = q.title;
+                const meta = document.createElement('div');
+                meta.className = 'q-meta';
+                const left = document.createElement('span');
+                left.textContent = q.attachments && q.attachments.length ? `附件 ${q.attachments.length}` : '';
+                const right = document.createElement('span');
+                right.textContent = q.id || '';
+                meta.appendChild(left);
+                meta.appendChild(right);
+                item.appendChild(title);
+                item.appendChild(meta);
+                list.appendChild(item);
+            }
+        }
+
+        function selectQuestion(questionId) {
+            selectedQuestionId = questionId;
+            for (const el of qs('question-list').querySelectorAll('.q-item')) {
+                el.classList.toggle('active', el.dataset.qid === questionId);
+            }
+            renderSelection(questionId);
+            resetAnswer(false);
+            renderSavedAnswer();
+        }
+
+        function renderSelection(questionId) {
+            const content = qs('question-content');
+            const status = qs('question-status');
+            const subtitle = qs('header-subtitle');
+            qs('question-error').style.display = 'none';
+            qs('question-error').textContent = '';
+            if (!questionId) {
+                content.innerHTML = '<span class="placeholder">未选择问题</span>';
+                status.textContent = '';
+                subtitle.textContent = '选择左侧问题并运行测试';
+                qs('run-btn').disabled = true;
+                renderQuestionReferencePanel(null);
+                return;
+            }
+            const q = QUESTIONS.find(x => x.id === questionId);
+            if (!q) {
+                content.innerHTML = '<span class="placeholder">问题不存在</span>';
+                status.textContent = '';
+                subtitle.textContent = '选择左侧问题并运行测试';
+                qs('run-btn').disabled = true;
+                renderQuestionReferencePanel(null);
+                return;
+            }
+            subtitle.textContent = `${q.id} · ${q.title}`;
+            status.textContent = q.scoring || '';
+            content.textContent = q.content;
+            qs('run-btn').disabled = isRunning;
+            renderQuestionReferencePanel(q);
+        }
+
+        function setAnswerText(text) {
+            setAnswerParts('', text);
+        }
+
+        function buildCombinedAnswerText(reasoning, content) {
+            const r = typeof reasoning === 'string' ? reasoning : '';
+            const c = typeof content === 'string' ? content : '';
+            if (!r.trim()) return c;
+            if (!c.trim()) return `<reasoning_content>\n${r}\n</reasoning_content>`;
+            return `<reasoning_content>\n${r}\n</reasoning_content>\n\n${c}`;
+        }
+
+        function parseCombinedAnswerText(text) {
+            const t = typeof text === 'string' ? text : '';
+            const startTag = '<reasoning_content>';
+            const endTag = '</reasoning_content>';
+            const startIndex = t.indexOf(startTag);
+            const endIndex = t.indexOf(endTag);
+            if (startIndex >= 0 && startIndex < 40 && endIndex > startIndex) {
+                const reasoningRaw = t.slice(startIndex + startTag.length, endIndex);
+                const afterRaw = t.slice(endIndex + endTag.length);
+                const reasoning = reasoningRaw.replace(/^\s*\r?\n/, '').replace(/\r?\n\s*$/, '');
+                const content = afterRaw.replace(/^\s*\r?\n/, '').replace(/^\s*\r?\n/, '');
+                return { reasoning, content };
+            }
+            return { reasoning: '', content: t };
+        }
+
+        function ensureAnswerDom() {
+            const container = qs('answer-content');
+            if (!container) return null;
+
+            let details = container.querySelector('#answer-reasoning');
+            let reasoningPre = container.querySelector('#answer-reasoning-text');
+            let finalPre = container.querySelector('#answer-final-text');
+
+            if (details && reasoningPre && finalPre) {
+                return { container, details, reasoningPre, finalPre };
+            }
+
+            container.textContent = '';
+
+            details = document.createElement('details');
+            details.id = 'answer-reasoning';
+            details.className = 'reasoning-details';
+
+            const summary = document.createElement('summary');
+            summary.textContent = '思维链';
+            details.appendChild(summary);
+
+            reasoningPre = document.createElement('pre');
+            reasoningPre.id = 'answer-reasoning-text';
+            reasoningPre.className = 'answer-pre';
+            details.appendChild(reasoningPre);
+
+            finalPre = document.createElement('pre');
+            finalPre.id = 'answer-final-text';
+            finalPre.className = 'answer-pre';
+
+            container.appendChild(details);
+            container.appendChild(finalPre);
+
+            return { container, details, reasoningPre, finalPre };
+        }
+
+        function setAnswerParts(reasoning, content) {
+            const dom = ensureAnswerDom();
+            if (!dom) return;
+
+            const r = typeof reasoning === 'string' ? reasoning : '';
+            const c = typeof content === 'string' ? content : '';
+
+            if (r.trim()) {
+                dom.details.style.display = 'block';
+                dom.reasoningPre.textContent = r;
+            } else {
+                dom.details.open = false;
+                dom.details.style.display = 'none';
+                dom.reasoningPre.textContent = '';
+            }
+
+            dom.finalPre.textContent = c;
+        }
+
+        function resetAnswer(clearText = true) {
+            qs('answer-error').style.display = 'none';
+            qs('answer-error').textContent = '';
+            qs('answer-status').textContent = '';
+            if (clearText) setAnswerParts('', '');
+        }
+
+        function renderSavedAnswer() {
+            const q = QUESTIONS.find(x => x.id === selectedQuestionId);
+            if (!q) {
+                setAnswerText('');
+                return;
+            }
+
+            const provider = getSelectedProvider();
+            const model = (qs('model-input').value || '').trim();
+            if (!provider || !provider.id || !model) {
+                setAnswerText('');
+                return;
+            }
+
+            const providerAnswers = q.answers && typeof q.answers === 'object' ? q.answers[provider.id] : null;
+            const saved = providerAnswers && typeof providerAnswers === 'object' ? providerAnswers[model] : '';
+            if (typeof saved === 'string') {
+                const parsed = parseCombinedAnswerText(saved);
+                setAnswerParts(parsed.reasoning, parsed.content);
+            } else {
+                setAnswerParts('', '');
+            }
+        }
+
+        function saveAnswerToLocal(questionId, providerId, model, content) {
+            const q = QUESTIONS.find(x => x.id === questionId);
+            if (!q) return;
+            if (!q.answers || typeof q.answers !== 'object') q.answers = {};
+            if (!q.answers[providerId] || typeof q.answers[providerId] !== 'object') q.answers[providerId] = {};
+            q.answers[providerId][model] = content;
+        }
+
+        function setRunningState(running) {
+            isRunning = running;
+            qs('run-btn').disabled = running || !selectedQuestionId;
+            qs('stop-btn').disabled = !running;
+            qs('answer-status').textContent = running ? 'AI 正在思考...' : '';
+        }
+
+        function stopRun() {
+            if (activeRun && activeRun.abortController) {
+                activeRun.abortController.abort();
+            }
+        }
+
+        async function runSelectedQuestion() {
+            const q = QUESTIONS.find(x => x.id === selectedQuestionId);
+            if (!q) return;
+
+            const provider = getSelectedProvider();
+            const model = (qs('model-input').value || '').trim();
+
+            if (!provider) {
+                alert('请先在设置中配置服务商');
+                qs('settings-modal').classList.add('active');
+                return;
+            }
+
+            if (!provider.host || !provider.host.trim()) {
+                alert('请先在设置中填写 Host');
+                qs('settings-modal').classList.add('active');
+                return;
+            }
+
+            if (!provider.apiKey || !provider.apiKey.trim()) {
+                alert('请先在设置中填写 API Key');
+                qs('settings-modal').classList.add('active');
+                return;
+            }
+
+            if (!model) {
+                alert('请先选择或输入模型');
+                return;
+            }
+
+            if (isRunning) return;
+            resetAnswer();
+            setRunningState(true);
+
+            const abortController = new AbortController();
+            activeRun = { abortController, questionId: q.id };
+            let aiResponseText = '';
+            let aiReasoningText = '';
+
+            try {
+                try {
+                    await persistConfig();
+                } catch {}
+
+                const response = await fetch(`/api/model/test`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${provider.apiKey}`
+                    },
+                    body: JSON.stringify({
+                        host: provider.host,
+                        providerId: provider.id,
+                        questionId: q.id,
+                        model: model,
+                        messages: [{ role: 'user', content: q.content }],
+                        stream: true
+                    }),
+                    signal: abortController.signal
+                });
+
+                if (!response.ok) {
+                    const text = await response.text().catch(() => '');
+                    throw new Error(`HTTP Error: ${response.status}${text ? `\n${text}` : ''}`);
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop() ?? '';
+
+                    for (const rawLine of lines) {
+                        const line = rawLine.trim();
+                        if (!line.startsWith('data:')) continue;
+                        const data = line.slice(5).trim();
+                        if (!data || data === '[DONE]') continue;
+
+                        let json;
+                        try {
+                            json = JSON.parse(data);
+                        } catch {
+                            continue;
+                        }
+
+                        const delta = json?.choices?.[0]?.delta?.content;
+                        if (typeof delta === 'string' && delta.length > 0) {
+                            aiResponseText += delta;
+                            setAnswerParts(aiReasoningText, aiResponseText);
+                        }
+
+                        const reasoningDelta = json?.choices?.[0]?.delta?.reasoning_content;
+                        if (typeof reasoningDelta === 'string' && reasoningDelta.length > 0) {
+                            aiReasoningText += reasoningDelta;
+                            setAnswerParts(aiReasoningText, aiResponseText);
+                        }
+                    }
+                }
+            } catch (error) {
+                if (error && error.name === 'AbortError') {
+                    qs('answer-status').textContent = '已停止';
+                } else {
+                    qs('answer-error').style.display = 'block';
+                    qs('answer-error').textContent = `发生错误: ${error.message ?? String(error)}`;
+                }
+            } finally {
+                const finalText = buildCombinedAnswerText(aiReasoningText, aiResponseText);
+                if (finalText && provider && provider.id && model) {
+                    saveAnswerToLocal(q.id, provider.id, model, finalText);
+                }
+                if (activeRun && activeRun.questionId === q.id) {
+                    activeRun = null;
+                }
+                setRunningState(false);
+            }
+        }
+    </script>
+</body>
+</html>
