@@ -6,7 +6,7 @@
         xmlns:local="clr-namespace:AI_Test"
         xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
         mc:Ignorable="d"
-        Title="MainWindow" Height="720" Width="1280">
+        Title="LLM测试助手" Height="800" Width="1280">
     <Grid>
         <wv2:WebView2 x:Name="Browser" />
     </Grid>

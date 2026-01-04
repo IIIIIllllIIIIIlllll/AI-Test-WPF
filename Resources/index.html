@@ -101,6 +101,24 @@
             z-index: 100;
         }
 
+        .question-modal {
+            overflow: auto;
+            padding: 40px;
+            box-sizing: border-box;
+            align-items: flex-start;
+        }
+
+        @media (max-height: 520px) {
+            .question-modal {
+                padding: 16px;
+            }
+
+            .question-dialog {
+                width: min(900px, 100vw - 32px);
+                max-height: calc(100vh - 32px);
+            }
+        }
+
         .settings-modal.active,
         .question-modal.active,
         .attachment-modal.active {
@@ -188,7 +206,7 @@
         }
 
         .question-dialog .settings-panel {
-            overflow: visible;
+            overflow: auto;
         }
 
         .settings-sidebar {
@@ -731,7 +749,6 @@
                     <div class="toolbar">
                         <select id="provider-select" class="btn" style="padding:6px 10px;" onchange="onProviderChanged()"></select>
                         <select id="model-input" class="btn" style="padding:6px 10px; width:220px;"></select>
-                        <span class="status" id="question-status"></span>
                         <button class="btn btn-primary" id="run-btn" onclick="runSelectedQuestion()" disabled>运行</button>
                     </div>
                 </div>
@@ -1607,13 +1624,11 @@
 
         function renderSelection(questionId) {
             const content = qs('question-content');
-            const status = qs('question-status');
             const subtitle = qs('header-subtitle');
             qs('question-error').style.display = 'none';
             qs('question-error').textContent = '';
             if (!questionId) {
                 content.innerHTML = '<span class="placeholder">未选择问题</span>';
-                status.textContent = '';
                 subtitle.textContent = '选择左侧问题并运行测试';
                 qs('run-btn').disabled = true;
                 renderQuestionReferencePanel(null);
@@ -1623,7 +1638,6 @@
             const q = QUESTIONS.find(x => x.id === questionId);
             if (!q) {
                 content.innerHTML = '<span class="placeholder">问题不存在</span>';
-                status.textContent = '';
                 subtitle.textContent = '选择左侧问题并运行测试';
                 qs('run-btn').disabled = true;
                 renderQuestionReferencePanel(null);
@@ -1631,7 +1645,6 @@
                 return;
             }
             subtitle.textContent = `${q.id} · ${q.title}`;
-            status.textContent = q.scoring || '';
             content.textContent = q.content;
             qs('run-btn').disabled = isRunning;
             renderQuestionReferencePanel(q);
