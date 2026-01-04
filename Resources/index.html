@@ -90,7 +90,8 @@
         }
 
         .settings-modal,
-        .question-modal {
+        .question-modal,
+        .attachment-modal {
             position: fixed;
             inset: 0;
             background: rgba(0, 0, 0, 0.5);
@@ -101,12 +102,14 @@
         }
 
         .settings-modal.active,
-        .question-modal.active {
+        .question-modal.active,
+        .attachment-modal.active {
             display: flex;
         }
 
         .settings-dialog,
-        .question-dialog {
+        .question-dialog,
+        .attachment-dialog {
             background-color: var(--bg-color);
             border: 1px solid var(--border-color);
             border-radius: 10px;
@@ -123,7 +126,8 @@
         }
 
         .settings-dialog-header,
-        .question-dialog-header {
+        .question-dialog-header,
+        .attachment-dialog-header {
             padding: 12px 16px;
             border-bottom: 1px solid var(--border-color);
             display: flex;
@@ -133,8 +137,47 @@
         }
 
         .settings-dialog-title,
-        .question-dialog-title {
+        .question-dialog-title,
+        .attachment-dialog-title {
             font-weight: 700;
+        }
+
+        .attachment-dialog {
+            width: min(980px, 100vw - 80px);
+            max-height: calc(100vh - 80px);
+        }
+
+        .attachment-dialog-body {
+            flex: 1 1 auto;
+            overflow: auto;
+            padding: 14px 16px;
+            min-height: 0;
+        }
+
+        .attachment-preview {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .attachment-preview pre {
+            white-space: pre-wrap;
+            word-break: break-word;
+            overflow: auto;
+            border: 1px solid rgba(255,255,255,0.10);
+            border-radius: 10px;
+            padding: 12px;
+            margin: 0;
+            background: rgba(0,0,0,0.10);
+        }
+
+        .attachment-preview img {
+            max-width: 100%;
+            max-height: calc(100vh - 220px);
+            object-fit: contain;
+            border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.10);
+            background: rgba(0,0,0,0.10);
         }
 
         .settings-dialog-body {
@@ -451,6 +494,14 @@
             white-space: nowrap;
         }
 
+        .attachments-list li.clickable {
+            cursor: pointer;
+        }
+
+        .attachments-list li.clickable:hover {
+            border-color: rgba(16,163,127,0.9);
+        }
+
         .card {
             background: var(--card-bg);
             border: 1px solid rgba(255,255,255,0.06);
@@ -648,12 +699,25 @@
         </div>
     </div>
 
+    <div id="attachment-modal" class="attachment-modal">
+        <div class="attachment-dialog">
+            <div class="attachment-dialog-header">
+                <div class="attachment-dialog-title" id="attachment-modal-title">附件预览</div>
+                <button class="btn" onclick="toggleAttachmentModal(false)">关闭</button>
+            </div>
+            <div class="attachment-dialog-body">
+                <div class="attachment-preview" id="attachment-modal-content"></div>
+            </div>
+        </div>
+    </div>
+
     <div class="layout">
         <aside class="left">
             <div class="left-header">
                 <h2>问题列表</h2>
                 <div style="display:flex; align-items:center; gap:8px;">
                     <button class="btn btn-primary" onclick="openAddQuestionDialog()" title="新增问题">新增</button>
+                    <button class="btn btn-danger" id="delete-question-btn" onclick="deleteSelectedQuestion()" title="删除选中问题" disabled>删除</button>
                     <button class="btn btn-danger" onclick="resetAnswer()" title="清空回答">清空</button>
                 </div>
             </div>
@@ -726,6 +790,7 @@
         let providers = [];
         let selectedProviderId = null;
         let availableModelsByProviderId = {};
+        let attachmentPreviewObjectUrl = null;
 
         function qs(id) {
             return document.getElementById(id);
@@ -740,6 +805,84 @@
             } else {
                 el.classList.add('placeholder');
                 el.textContent = placeholderText;
+            }
+        }
+
+        function clearAttachmentPreview() {
+            if (attachmentPreviewObjectUrl) {
+                try { URL.revokeObjectURL(attachmentPreviewObjectUrl); } catch {}
+                attachmentPreviewObjectUrl = null;
+            }
+            const contentEl = qs('attachment-modal-content');
+            if (contentEl) contentEl.textContent = '';
+        }
+
+        function toggleAttachmentModal(open) {
+            const modal = qs('attachment-modal');
+            if (!modal) return;
+
+            if (typeof open === 'boolean') {
+                modal.classList.toggle('active', open);
+                if (!open) clearAttachmentPreview();
+            } else {
+                const next = !modal.classList.contains('active');
+                modal.classList.toggle('active', next);
+                if (!next) clearAttachmentPreview();
+            }
+        }
+
+        async function openAttachmentPreview(questionId, fileName) {
+            const qid = String(questionId || '').trim();
+            const name = String(fileName || '').trim();
+            if (!qid || !name) return;
+
+            clearAttachmentPreview();
+            const titleEl = qs('attachment-modal-title');
+            if (titleEl) titleEl.textContent = `附件预览：${name}`;
+            toggleAttachmentModal(true);
+
+            const contentEl = qs('attachment-modal-content');
+            if (!contentEl) return;
+            contentEl.textContent = '加载中...';
+
+            try {
+                const url = `/api/question/file/get?questionId=${encodeURIComponent(qid)}&fileName=${encodeURIComponent(name)}`;
+                const resp = await fetch(url, { method: 'GET' });
+                if (!resp.ok) {
+                    const text = await resp.text().catch(() => '');
+                    let msg = text || `HTTP ${resp.status}`;
+                    try {
+                        const parsed = JSON.parse(text);
+                        if (parsed && typeof parsed.error === 'string') msg = parsed.error;
+                    } catch {}
+                    contentEl.textContent = msg;
+                    return;
+                }
+
+                const ct = String(resp.headers.get('Content-Type') || '').toLowerCase();
+                contentEl.textContent = '';
+
+                if (ct.startsWith('image/')) {
+                    const blob = await resp.blob();
+                    attachmentPreviewObjectUrl = URL.createObjectURL(blob);
+                    const img = document.createElement('img');
+                    img.alt = name;
+                    img.src = attachmentPreviewObjectUrl;
+                    contentEl.appendChild(img);
+                    return;
+                }
+
+                if (ct.startsWith('text/') || ct.includes('charset=')) {
+                    const text = await resp.text();
+                    const pre = document.createElement('pre');
+                    pre.textContent = text;
+                    contentEl.appendChild(pre);
+                    return;
+                }
+
+                contentEl.textContent = '不支持预览该类型文件。';
+            } catch (e) {
+                contentEl.textContent = `打开附件失败: ${e.message ?? String(e)}`;
             }
         }
 
@@ -780,6 +923,8 @@
 
                 const li = document.createElement('li');
                 li.textContent = name;
+                li.classList.add('clickable');
+                li.onclick = () => openAttachmentPreview(q.id, name);
                 attachmentsEl.appendChild(li);
             });
         }
@@ -931,6 +1076,49 @@
                 alert(`提交失败: ${e.message ?? String(e)}`);
             } finally {
                 if (submitBtn) submitBtn.disabled = false;
+            }
+        }
+
+        function syncQuestionActionButtons() {
+            const delBtn = qs('delete-question-btn');
+            if (delBtn) delBtn.disabled = isRunning || !selectedQuestionId;
+        }
+
+        async function deleteSelectedQuestion() {
+            const questionId = selectedQuestionId;
+            if (!questionId || isRunning) return;
+
+            const q = QUESTIONS.find(x => x.id === questionId);
+            const title = q?.title ? `「${q.title}」` : questionId;
+            if (!confirm(`确定删除问题 ${title}？\n删除后将同时移除附件，且无法恢复。`)) return;
+
+            try {
+                const response = await fetch('/api/question/remove', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: questionId })
+                });
+
+                if (!response.ok) {
+                    const text = await response.text().catch(() => '');
+                    throw new Error(text || `HTTP ${response.status}`);
+                }
+
+                const oldIndex = Math.max(0, QUESTIONS.findIndex(x => x.id === questionId));
+                await loadQuestions();
+                renderQuestionList();
+
+                if (QUESTIONS.length === 0) {
+                    selectedQuestionId = null;
+                    renderSelection(null);
+                } else {
+                    const next = QUESTIONS[Math.min(oldIndex, QUESTIONS.length - 1)];
+                    selectQuestion(next.id);
+                }
+            } catch (e) {
+                alert(`删除失败: ${e.message ?? String(e)}`);
+            } finally {
+                syncQuestionActionButtons();
             }
         }
 
@@ -1414,6 +1602,7 @@
             renderSelection(questionId);
             resetAnswer(false);
             renderSavedAnswer();
+            syncQuestionActionButtons();
         }
 
         function renderSelection(questionId) {
@@ -1428,6 +1617,7 @@
                 subtitle.textContent = '选择左侧问题并运行测试';
                 qs('run-btn').disabled = true;
                 renderQuestionReferencePanel(null);
+                syncQuestionActionButtons();
                 return;
             }
             const q = QUESTIONS.find(x => x.id === questionId);
@@ -1437,6 +1627,7 @@
                 subtitle.textContent = '选择左侧问题并运行测试';
                 qs('run-btn').disabled = true;
                 renderQuestionReferencePanel(null);
+                syncQuestionActionButtons();
                 return;
             }
             subtitle.textContent = `${q.id} · ${q.title}`;
@@ -1444,6 +1635,7 @@
             content.textContent = q.content;
             qs('run-btn').disabled = isRunning;
             renderQuestionReferencePanel(q);
+            syncQuestionActionButtons();
         }
 
         function setAnswerText(text) {
@@ -1574,6 +1766,7 @@
             qs('run-btn').disabled = running || !selectedQuestionId;
             qs('stop-btn').disabled = !running;
             qs('answer-status').textContent = running ? 'AI 正在思考...' : '';
+            syncQuestionActionButtons();
         }
 
         function stopRun() {

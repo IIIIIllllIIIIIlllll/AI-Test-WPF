@@ -6,6 +6,7 @@ using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization.Metadata;
 using System.Threading;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -27,12 +28,14 @@ public sealed partial class LocalWebServer : IAsyncDisposable
     private static readonly JsonSerializerOptions RelaxedJsonOptions = new JsonSerializerOptions
     {
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+        TypeInfoResolver = new DefaultJsonTypeInfoResolver(),
     };
 
     private static readonly JsonSerializerOptions RelaxedIndentedJsonOptions = new JsonSerializerOptions
     {
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
         WriteIndented = true,
+        TypeInfoResolver = new DefaultJsonTypeInfoResolver(),
     };
 
     public Uri BaseUri { get; private set; } = new Uri("http://127.0.0.1/");
@@ -87,6 +90,8 @@ public sealed partial class LocalWebServer : IAsyncDisposable
         app.MapGet("/api/question/list", ListQuestionAsync);
         app.MapPost("/api/question/list", ListQuestionAsync);
         app.MapPost("/api/question/add", AddQuestionAsync);
+        app.MapPost("/api/question/remove", RemoveQuestionAsync);
+        app.MapGet("/api/question/file/get", GetQuestionFileAsync);
         app.MapPost("/api/question/answer/save", SaveQuestionAnswerAsync);
 
         app.MapFallback(FallbackAsync);
