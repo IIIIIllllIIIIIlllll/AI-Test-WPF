@@ -1,8 +1,9 @@
 using System.Net.Http;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Http;
+using AI_Test.OpenAI;
+using AI_Test.OpenAI.Models;
 using AI_Test.Question;
 
 namespace AI_Test.LocalWebServer;
@@ -71,7 +72,24 @@ public sealed partial class LocalWebServer
         bodyObject.Remove("providerId");
         var payloadJson = bodyObject.ToJsonString();
 
-        var forwardUri = new Uri(baseUri, "v1/chat/completions");
+        try
+        {
+            var request = JsonSerializer.Deserialize<ChatCompletionRequest>(payloadJson);
+            if (request?.Stream is not null)
+            {
+                streamRequested = request.Stream.Value;
+            }
+
+            if (string.IsNullOrWhiteSpace(modelForSave) && !string.IsNullOrWhiteSpace(request?.Model))
+            {
+                modelForSave = request.Model;
+            }
+        }
+        catch
+        {
+        }
+
+        var forwardUri = OpenAIChatCompletionsProxy.GetChatCompletionsUri(baseUri);
 
         HttpResponseMessage forwardResponse;
         try
@@ -104,13 +122,13 @@ public sealed partial class LocalWebServer
             {
                 if (streamRequested)
                 {
-                    capturedAnswer = await ProxyStreamAndCaptureSseAnswerAsync(forwardResponse, context);
+                    capturedAnswer = await OpenAIChatCompletionsProxy.ProxyStreamAndCaptureSseAnswerAsync(forwardResponse, context, context.RequestAborted);
                 }
                 else
                 {
                     var responseText = await forwardResponse.Content.ReadAsStringAsync(context.RequestAborted);
                     await context.Response.WriteAsync(responseText, context.RequestAborted);
-                    capturedAnswer = TryExtractChatCompletionContent(responseText);
+                    capturedAnswer = OpenAIChatCompletionsProxy.TryExtractChatCompletionContent(responseText);
                 }
             }
             catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
@@ -138,108 +156,5 @@ public sealed partial class LocalWebServer
                 }
             }
         }
-    }
-
-    private async Task<string?> ProxyStreamAndCaptureSseAnswerAsync(HttpResponseMessage forwardResponse, HttpContext context)
-    {
-        var responseStream = await forwardResponse.Content.ReadAsStreamAsync(context.RequestAborted);
-
-        var decoder = Encoding.UTF8.GetDecoder();
-        var bytesBuffer = new byte[16 * 1024];
-        var charsBuffer = new char[16 * 1024];
-
-        var pendingText = "";
-        var capturedContent = new StringBuilder();
-        var capturedReasoning = new StringBuilder();
-
-        while (true)
-        {
-            var read = await responseStream.ReadAsync(bytesBuffer.AsMemory(0, bytesBuffer.Length), context.RequestAborted);
-            if (read <= 0)
-            {
-                break;
-            }
-
-            await context.Response.Body.WriteAsync(bytesBuffer.AsMemory(0, read), context.RequestAborted);
-            await context.Response.Body.FlushAsync(context.RequestAborted);
-
-            var chars = decoder.GetChars(bytesBuffer, 0, read, charsBuffer, 0, flush: false);
-            if (chars <= 0) continue;
-
-            pendingText += new string(charsBuffer, 0, chars);
-
-            while (true)
-            {
-                var newlineIndex = pendingText.IndexOf('\n');
-                if (newlineIndex < 0) break;
-
-                var line = pendingText.Substring(0, newlineIndex);
-                pendingText = pendingText.Substring(newlineIndex + 1);
-
-                var trimmed = line.Trim();
-                if (!trimmed.StartsWith("data:", StringComparison.Ordinal)) continue;
-                var data = trimmed[5..].Trim();
-                if (data.Length == 0 || string.Equals(data, "[DONE]", StringComparison.Ordinal)) continue;
-
-                try
-                {
-                    var json = JsonNode.Parse(data);
-                    var deltaContent = json?["choices"]?[0]?["delta"]?["content"]?.GetValue<string>();
-                    if (!string.IsNullOrEmpty(deltaContent))
-                    {
-                        capturedContent.Append(deltaContent);
-                    }
-
-                    var deltaReasoning = json?["choices"]?[0]?["delta"]?["reasoning_content"]?.GetValue<string>();
-                    if (!string.IsNullOrEmpty(deltaReasoning))
-                    {
-                        capturedReasoning.Append(deltaReasoning);
-                    }
-                }
-                catch
-                {
-                }
-            }
-
-            context.Items["capturedAnswer"] = BuildCombinedAnswer(capturedReasoning.ToString(), capturedContent.ToString());
-        }
-
-        var combined = BuildCombinedAnswer(capturedReasoning.ToString(), capturedContent.ToString());
-        return string.IsNullOrWhiteSpace(combined) ? null : combined;
-    }
-
-    private static string? TryExtractChatCompletionContent(string responseJson)
-    {
-        if (string.IsNullOrWhiteSpace(responseJson)) return null;
-        try
-        {
-            var json = JsonNode.Parse(responseJson);
-            var content = json?["choices"]?[0]?["message"]?["content"]?.GetValue<string>();
-            var reasoning = json?["choices"]?[0]?["message"]?["reasoning_content"]?.GetValue<string>();
-            var combined = BuildCombinedAnswer(reasoning, content);
-            return string.IsNullOrWhiteSpace(combined) ? null : combined;
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    private static string BuildCombinedAnswer(string? reasoningContent, string? content)
-    {
-        var reasoning = reasoningContent ?? "";
-        var answer = content ?? "";
-
-        if (string.IsNullOrWhiteSpace(reasoning))
-        {
-            return answer;
-        }
-
-        if (string.IsNullOrWhiteSpace(answer))
-        {
-            return $"<reasoning_content>\n{reasoning}\n</reasoning_content>";
-        }
-
-        return $"<reasoning_content>\n{reasoning}\n</reasoning_content>\n\n{answer}";
     }
 }
