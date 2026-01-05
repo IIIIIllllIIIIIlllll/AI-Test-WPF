@@ -507,17 +507,40 @@
             border-radius: 8px;
             padding: 8px 10px;
             font-size: 13px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            overflow: hidden;
+        }
+
+        .attachments-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .attachment-name {
+            flex: 1 1 auto;
+            min-width: 0;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
         }
 
-        .attachments-list li.clickable {
+        .attachment-name.clickable {
             cursor: pointer;
         }
 
-        .attachments-list li.clickable:hover {
-            border-color: rgba(16,163,127,0.9);
+        .attachment-name.clickable:hover {
+            color: rgba(16,163,127,0.95);
+        }
+
+        .attachment-remove-btn {
+            padding: 4px 8px;
+            font-size: 12px;
+            flex: 0 0 auto;
         }
 
         .card {
@@ -788,6 +811,10 @@
                         </div>
                         <div class="meta-section">
                             <div class="meta-label">附件</div>
+                            <div class="attachments-toolbar">
+                                <button class="btn btn-primary" id="question-attachment-add-btn" onclick="pickAttachmentForSelectedQuestion()" disabled>添加附件</button>
+                                <input type="file" id="question-attachment-add-input" style="display:none" onchange="onSelectedQuestionAttachmentPicked(event)">
+                            </div>
                             <ul class="attachments-list" id="question-attachments-view">
                                 <li class="placeholder">未选择问题</li>
                             </ul>
@@ -907,6 +934,7 @@
             const answerEl = qs('question-answer-view');
             const scoringEl = qs('question-scoring-view');
             const attachmentsEl = qs('question-attachments-view');
+            const addBtn = qs('question-attachment-add-btn');
 
             if (!q) {
                 setPreWithPlaceholder(answerEl, '', '未选择问题');
@@ -914,11 +942,13 @@
                 if (attachmentsEl) {
                     attachmentsEl.innerHTML = '<li class="placeholder">未选择问题</li>';
                 }
+                if (addBtn) addBtn.disabled = true;
                 return;
             }
 
             setPreWithPlaceholder(answerEl, q.answer, '未配置');
             setPreWithPlaceholder(scoringEl, q.scoring, '未配置');
+            if (addBtn) addBtn.disabled = isRunning || !q.id;
 
             const attachments = Array.isArray(q.attachments) ? q.attachments : [];
             if (!attachmentsEl) return;
@@ -939,11 +969,117 @@
                 name = (name || '').trim() || `未命名附件 ${idx + 1}`;
 
                 const li = document.createElement('li');
-                li.textContent = name;
-                li.classList.add('clickable');
-                li.onclick = () => openAttachmentPreview(q.id, name);
+                const nameSpan = document.createElement('span');
+                nameSpan.className = 'attachment-name clickable';
+                nameSpan.textContent = name;
+                nameSpan.onclick = () => openAttachmentPreview(q.id, name);
+
+                const removeBtn = document.createElement('button');
+                removeBtn.className = 'btn btn-danger attachment-remove-btn';
+                removeBtn.textContent = '移除';
+                removeBtn.disabled = isRunning;
+                removeBtn.onclick = (ev) => {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    removeAttachmentFromSelectedQuestion(q.id, name);
+                };
+
+                li.appendChild(nameSpan);
+                li.appendChild(removeBtn);
                 attachmentsEl.appendChild(li);
             });
+        }
+
+        function pickAttachmentForSelectedQuestion() {
+            if (!selectedQuestionId || isRunning) return;
+            const input = qs('question-attachment-add-input');
+            if (!input) return;
+            input.value = '';
+            input.click();
+        }
+
+        async function onSelectedQuestionAttachmentPicked(event) {
+            if (!selectedQuestionId || isRunning) return;
+            const input = event?.target;
+            const file = input?.files && input.files.length ? input.files[0] : null;
+            if (!file) return;
+
+            try {
+                await addAttachmentToSelectedQuestion(selectedQuestionId, file);
+            } finally {
+                try { input.value = ''; } catch {}
+            }
+        }
+
+        async function refreshQuestionsKeepSelection() {
+            const keep = selectedQuestionId;
+            await loadQuestions();
+            renderQuestionList();
+            if (keep && QUESTIONS.some(x => x.id === keep)) {
+                selectedQuestionId = keep;
+                for (const el of qs('question-list').querySelectorAll('.q-item')) {
+                    el.classList.toggle('active', el.dataset.qid === keep);
+                }
+                renderSelection(keep);
+            } else {
+                selectedQuestionId = null;
+                renderSelection(null);
+            }
+            syncQuestionActionButtons();
+        }
+
+        async function addAttachmentToSelectedQuestion(questionId, file) {
+            const qid = String(questionId || '').trim();
+            if (!qid || !file) return;
+
+            const form = new FormData();
+            form.append('id', qid);
+            form.append('fileName', file.name || 'attachment');
+            form.append('file', file, file.name || 'attachment');
+
+            const resp = await fetch('/api/question/file/add', {
+                method: 'POST',
+                body: form
+            });
+
+            if (!resp.ok) {
+                const text = await resp.text().catch(() => '');
+                let msg = text || `HTTP ${resp.status}`;
+                try {
+                    const parsed = JSON.parse(text);
+                    if (parsed && typeof parsed.error === 'string') msg = parsed.error;
+                } catch {}
+                throw new Error(msg);
+            }
+
+            await refreshQuestionsKeepSelection();
+        }
+
+        async function removeAttachmentFromSelectedQuestion(questionId, fileName) {
+            const qid = String(questionId || '').trim();
+            const name = String(fileName || '').trim();
+            if (!qid || !name || isRunning) return;
+
+            if (!confirm(`确定移除附件「${name}」？\n文件将被删除，且无法恢复。`)) return;
+
+            const resp = await fetch('/api/question/file/remove', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: qid, fileName: name })
+            });
+
+            if (!resp.ok) {
+                const text = await resp.text().catch(() => '');
+                let msg = text || `HTTP ${resp.status}`;
+                try {
+                    const parsed = JSON.parse(text);
+                    if (parsed && typeof parsed.error === 'string') msg = parsed.error;
+                } catch {}
+                alert(`移除失败: ${msg}`);
+                return;
+            }
+
+            await refreshQuestionsKeepSelection();
         }
 
         window.onload = async function() {
@@ -1099,6 +1235,8 @@
         function syncQuestionActionButtons() {
             const delBtn = qs('delete-question-btn');
             if (delBtn) delBtn.disabled = isRunning || !selectedQuestionId;
+            const addBtn = qs('question-attachment-add-btn');
+            if (addBtn) addBtn.disabled = isRunning || !selectedQuestionId;
         }
 
         async function deleteSelectedQuestion() {

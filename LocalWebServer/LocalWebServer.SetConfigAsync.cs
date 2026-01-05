@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Http;
+using AI_Test.Config;
 
 namespace AI_Test.LocalWebServer;
 
@@ -33,18 +34,10 @@ public sealed partial class LocalWebServer
             return;
         }
 
-        var filePath = GetConfigFilePath();
-        await _configLock.WaitAsync(context.RequestAborted);
         try
         {
-            var dir = Path.GetDirectoryName(filePath);
-            if (!string.IsNullOrWhiteSpace(dir))
-            {
-                Directory.CreateDirectory(dir);
-            }
-
-            var json = rootNode.ToJsonString(RelaxedIndentedJsonOptions);
-            await File.WriteAllTextAsync(filePath, json, new UTF8Encoding(false), context.RequestAborted);
+            var manager = new ConfigManager(GetConfigFilePath(), _configLock);
+            await manager.SaveConfigAsync(rootNode, context.RequestAborted);
 
             context.Response.ContentType = "application/json; charset=utf-8";
             await context.Response.WriteAsync("{\"ok\":true}", context.RequestAborted);
@@ -56,10 +49,6 @@ public sealed partial class LocalWebServer
         catch (Exception ex)
         {
             await WriteJsonErrorAsync(context, StatusCodes.Status500InternalServerError, $"Failed to save config. {ex.Message}");
-        }
-        finally
-        {
-            _configLock.Release();
         }
     }
 }

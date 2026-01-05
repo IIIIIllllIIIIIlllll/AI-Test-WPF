@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Http;
+using AI_Test.Question;
 
 namespace AI_Test.LocalWebServer;
 
@@ -128,7 +129,8 @@ public sealed partial class LocalWebServer
                 {
                     try
                     {
-                        await SaveAnswerCoreAsync(questionId!, providerId!, modelForSave!, capturedAnswer!, _serverCancellationToken);
+                        var manager = GetQuestionManager();
+                        await manager.SaveAnswerAsync(questionId!, providerId!, modelForSave!, capturedAnswer!, _serverCancellationToken);
                     }
                     catch
                     {

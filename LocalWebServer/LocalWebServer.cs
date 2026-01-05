@@ -8,6 +8,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization.Metadata;
 using System.Threading;
+using AI_Test.Question;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -21,7 +22,7 @@ public sealed partial class LocalWebServer : IAsyncDisposable
     private WebApplication? _app;
     private HttpClient? _proxyHttpClient;
     private readonly SemaphoreSlim _configLock = new SemaphoreSlim(1, 1);
-    private readonly SemaphoreSlim _questionLock = new SemaphoreSlim(1, 1);
+    private QuestionManager? _questionManager;
     private string? _resourcesDirectoryFullName;
     private CancellationToken _serverCancellationToken;
 
@@ -73,6 +74,7 @@ public sealed partial class LocalWebServer : IAsyncDisposable
 
         _resourcesDirectoryFullName = resourcesDirectory.FullName;
         _serverCancellationToken = cancellationToken;
+        _questionManager = new QuestionManager(GetQuestionFilePath());
 
         var fileProvider = new PhysicalFileProvider(resourcesDirectory.FullName);
         app.UseStaticFiles(new StaticFileOptions
@@ -93,6 +95,8 @@ public sealed partial class LocalWebServer : IAsyncDisposable
         app.MapPost("/api/question/remove", RemoveQuestionAsync);
         app.MapGet("/api/question/file/get", GetQuestionFileAsync);
         app.MapPost("/api/question/answer/save", SaveQuestionAnswerAsync);
+        app.MapPost("/api/question/file/add", AddQuestionFileAsync);
+        app.MapPost("/api/question/file/remove", RemoveQuestionFileAsync);
 
         app.MapFallback(FallbackAsync);
 
@@ -115,6 +119,7 @@ public sealed partial class LocalWebServer : IAsyncDisposable
         _proxyHttpClient = null;
         _resourcesDirectoryFullName = null;
         _serverCancellationToken = default;
+        _questionManager = null;
     }
 
     private static int GetAvailablePort()
@@ -287,6 +292,11 @@ public sealed partial class LocalWebServer : IAsyncDisposable
     {
         var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AI-Test");
         return Path.Combine(dir, "questions.json");
+    }
+
+    private QuestionManager GetQuestionManager()
+    {
+        return _questionManager ?? throw new InvalidOperationException("QuestionManager not initialized.");
     }
 
     private static async Task WriteJsonErrorAsync(HttpContext context, int statusCode, string message)
