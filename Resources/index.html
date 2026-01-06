@@ -84,6 +84,28 @@
             color: #ffd1d1;
         }
 
+        .icon-btn {
+            width: 32px;
+            height: 32px;
+            padding: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            line-height: 1;
+        }
+
+        .icon-btn svg {
+            width: 18px;
+            height: 18px;
+            display: block;
+            fill: currentColor;
+        }
+
+        .icon-btn.btn-primary svg {
+            fill: white;
+        }
+
         .btn:disabled {
             opacity: 0.55;
             cursor: not-allowed;
@@ -713,7 +735,7 @@
     <div id="question-modal" class="question-modal">
         <div class="question-dialog">
             <div class="question-dialog-header">
-                <div class="question-dialog-title">新增问题</div>
+                <div class="question-dialog-title" id="question-dialog-title">新增问题</div>
                 <button class="btn" onclick="toggleQuestionModal(false)">关闭</button>
             </div>
             <div class="settings-dialog-body" style="grid-template-columns: 1fr; overflow:hidden; min-height:0;">
@@ -734,7 +756,7 @@
                     <input type="file" id="question-attachments" multiple onchange="updateQuestionAttachmentsHint()">
                     <div class="status" id="question-attachments-hint" style="margin-top:0; margin-bottom:12px;"></div>
 
-                    <button class="btn btn-primary" id="question-submit-btn" onclick="submitAddQuestion()" style="width:100%;">提交</button>
+                    <button class="btn btn-primary" id="question-submit-btn" onclick="submitQuestion()" style="width:100%;">提交</button>
                 </main>
             </div>
         </div>
@@ -757,9 +779,18 @@
             <div class="left-header">
                 <h2>问题列表</h2>
                 <div style="display:flex; align-items:center; gap:8px;">
-                    <button class="btn btn-primary" onclick="openAddQuestionDialog()" title="新增问题">新增</button>
-                    <button class="btn btn-danger" id="delete-question-btn" onclick="deleteSelectedQuestion()" title="删除选中问题" disabled>删除</button>
-                    <button class="btn btn-danger" onclick="resetAnswer()" title="清空回答">清空</button>
+                    <button class="btn btn-primary icon-btn" onclick="openAddQuestionDialog()" title="新增问题" aria-label="新增问题">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5a1 1 0 1 1 2 0v6h6a1 1 0 1 1 0 2h-6v6a1 1 0 1 1-2 0v-6H5a1 1 0 1 1 0-2h6V5z"/></svg>
+                    </button>
+                    <button class="btn icon-btn" id="edit-question-btn" onclick="openEditQuestionDialog()" title="编辑选中问题" aria-label="编辑选中问题" disabled>
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zm2.92 2.33H5v-.92l9.06-9.06.92.92L5.92 19.58zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z"/></svg>
+                    </button>
+                    <button class="btn btn-danger icon-btn" id="delete-question-btn" onclick="deleteSelectedQuestion()" title="删除选中问题" aria-label="删除选中问题" disabled>
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 7h12l-1 14H7L6 7zm3-3h6l1 2H8l1-2z"/></svg>
+                    </button>
+                    <button class="btn icon-btn" onclick="resetAnswer()" title="清空回答" aria-label="清空回答">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v2H4V6zm3 4h10l-1.2 11H8.2L7 10zm3-6h4v2h-4V4z"/></svg>
+                    </button>
                 </div>
             </div>
             <div class="question-list" id="question-list"></div>
@@ -835,6 +866,8 @@
         let selectedProviderId = null;
         let availableModelsByProviderId = {};
         let attachmentPreviewObjectUrl = null;
+        let questionModalMode = 'add';
+        let editingQuestionId = null;
 
         function qs(id) {
             return document.getElementById(id);
@@ -1028,7 +1061,7 @@
             syncQuestionActionButtons();
         }
 
-        async function addAttachmentToSelectedQuestion(questionId, file) {
+        async function uploadAttachmentToQuestion(questionId, file) {
             const qid = String(questionId || '').trim();
             if (!qid || !file) return;
 
@@ -1051,7 +1084,10 @@
                 } catch {}
                 throw new Error(msg);
             }
+        }
 
+        async function addAttachmentToSelectedQuestion(questionId, file) {
+            await uploadAttachmentToQuestion(questionId, file);
             await refreshQuestionsKeepSelection();
         }
 
@@ -1104,16 +1140,52 @@
             if (!modal) return;
             if (typeof open === 'boolean') {
                 modal.classList.toggle('active', open);
+                if (!open) {
+                    setQuestionModalMode('add');
+                }
             } else {
                 modal.classList.toggle('active');
+                if (!modal.classList.contains('active')) {
+                    setQuestionModalMode('add');
+                }
             }
         }
 
+        function setQuestionModalMode(mode, questionId) {
+            const nextMode = mode === 'edit' ? 'edit' : 'add';
+            questionModalMode = nextMode;
+            editingQuestionId = nextMode === 'edit' ? (questionId || null) : null;
+
+            const titleEl = qs('question-dialog-title');
+            const submitBtn = qs('question-submit-btn');
+            if (titleEl) titleEl.textContent = nextMode === 'edit' ? '编辑问题' : '新增问题';
+            if (submitBtn) submitBtn.textContent = nextMode === 'edit' ? '保存修改' : '提交';
+
+            updateQuestionAttachmentsHint();
+        }
+
         function openAddQuestionDialog() {
+            setQuestionModalMode('add');
             qs('question-title').value = '';
             qs('question-content-input').value = '';
             qs('question-answer-input').value = '';
             qs('question-scoring-input').value = '';
+            const fileInput = qs('question-attachments');
+            if (fileInput) fileInput.value = '';
+            updateQuestionAttachmentsHint();
+            toggleQuestionModal(true);
+        }
+
+        function openEditQuestionDialog() {
+            if (!selectedQuestionId || isRunning) return;
+            const q = QUESTIONS.find(x => x.id === selectedQuestionId);
+            if (!q) return;
+
+            setQuestionModalMode('edit', q.id);
+            qs('question-title').value = q.title || '';
+            qs('question-content-input').value = q.content || '';
+            qs('question-answer-input').value = q.answer || '';
+            qs('question-scoring-input').value = q.scoring || '';
             const fileInput = qs('question-attachments');
             if (fileInput) fileInput.value = '';
             updateQuestionAttachmentsHint();
@@ -1125,7 +1197,16 @@
             const fileInput = qs('question-attachments');
             if (!hint || !fileInput) return;
             const count = fileInput.files ? fileInput.files.length : 0;
-            hint.textContent = count > 0 ? `已选择 ${count} 个附件` : '';
+            const suffix = questionModalMode === 'edit' ? '（将作为新增附件）' : '';
+            hint.textContent = count > 0 ? `已选择 ${count} 个附件${suffix}` : '';
+        }
+
+        async function submitQuestion() {
+            if (questionModalMode === 'edit') {
+                await submitEditQuestion();
+                return;
+            }
+            await submitAddQuestion();
         }
 
         async function loadQuestions() {
@@ -1232,11 +1313,57 @@
             }
         }
 
+        async function submitEditQuestion() {
+            const submitBtn = qs('question-submit-btn');
+            if (submitBtn) submitBtn.disabled = true;
+
+            try {
+                const questionId = String(editingQuestionId || '').trim();
+                if (!questionId) return;
+
+                const title = (qs('question-title').value || '').trim();
+                const content = (qs('question-content-input').value || '').trim();
+                const answer = (qs('question-answer-input').value || '').trim();
+                const scoring = (qs('question-scoring-input').value || '').trim();
+                const fileInput = qs('question-attachments');
+
+                if (!title || !content) {
+                    alert('请填写标题与内容');
+                    return;
+                }
+
+                const response = await fetch('/api/question/update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: questionId, title, content, answer, scoring })
+                });
+
+                if (!response.ok) {
+                    const text = await response.text().catch(() => '');
+                    throw new Error(text || `HTTP ${response.status}`);
+                }
+
+                const files = fileInput?.files ? Array.from(fileInput.files) : [];
+                for (const f of files) {
+                    await uploadAttachmentToQuestion(questionId, f);
+                }
+
+                await refreshQuestionsKeepSelection();
+                toggleQuestionModal(false);
+            } catch (e) {
+                alert(`保存失败: ${e.message ?? String(e)}`);
+            } finally {
+                if (submitBtn) submitBtn.disabled = false;
+            }
+        }
+
         function syncQuestionActionButtons() {
             const delBtn = qs('delete-question-btn');
             if (delBtn) delBtn.disabled = isRunning || !selectedQuestionId;
             const addBtn = qs('question-attachment-add-btn');
             if (addBtn) addBtn.disabled = isRunning || !selectedQuestionId;
+            const editBtn = qs('edit-question-btn');
+            if (editBtn) editBtn.disabled = isRunning || !selectedQuestionId;
         }
 
         async function deleteSelectedQuestion() {

@@ -97,6 +97,73 @@ namespace AI_Test.LocalWebServer
             }
         }
 
+        private async Task UpdateQuestionAsync(HttpContext context)
+        {
+            if (!context.Request.HasJsonContentType())
+            {
+                await WriteJsonErrorAsync(context, StatusCodes.Status415UnsupportedMediaType, "Content-Type must be application/json.");
+                return;
+            }
+
+            var bodyObject = await ReadJsonObjectBodyAsync(context);
+            if (bodyObject is null)
+            {
+                return;
+            }
+
+            var questionId = bodyObject["id"]?.GetValue<string>()?.Trim()
+                             ?? bodyObject["questionId"]?.GetValue<string>()?.Trim();
+            var title = bodyObject["title"]?.GetValue<string>()?.Trim();
+            var content = bodyObject["content"]?.GetValue<string>()?.Trim();
+            var answer = bodyObject["answer"]?.GetValue<string>()?.Trim();
+            var scoring = bodyObject["scoring"]?.GetValue<string>()?.Trim();
+
+            if (string.IsNullOrWhiteSpace(questionId))
+            {
+                await WriteJsonErrorAsync(context, StatusCodes.Status400BadRequest, "Missing required field: id.");
+                return;
+            }
+
+            if (!QuestionManager.IsSafeQuestionId(questionId))
+            {
+                await WriteJsonErrorAsync(context, StatusCodes.Status400BadRequest, "Invalid questionId.");
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(title) || string.IsNullOrWhiteSpace(content))
+            {
+                await WriteJsonErrorAsync(context, StatusCodes.Status400BadRequest, "Missing required fields: title, content.");
+                return;
+            }
+
+            try
+            {
+                var manager = GetQuestionManager();
+                var updated = await manager.UpdateQuestionAsync(questionId, title, content, answer, scoring, context.RequestAborted);
+                if (!updated)
+                {
+                    await WriteJsonErrorAsync(context, StatusCodes.Status404NotFound, "Question not found.");
+                    return;
+                }
+
+                context.Response.ContentType = "application/json; charset=utf-8";
+                var responsePayload = new JsonObject
+                {
+                    ["ok"] = true,
+                    ["updated"] = true
+                };
+                await context.Response.WriteAsync(responsePayload.ToJsonString(RelaxedJsonOptions), context.RequestAborted);
+            }
+            catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                await WriteJsonErrorAsync(context, StatusCodes.Status500InternalServerError, $"Failed to update question. {ex.Message}");
+            }
+        }
+
 
         /// <summary>
         /// 移除一个‘问题’

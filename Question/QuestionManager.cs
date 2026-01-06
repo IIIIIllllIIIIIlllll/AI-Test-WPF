@@ -163,6 +163,63 @@ public sealed class QuestionManager
         }
     }
 
+    public async Task<bool> UpdateQuestionAsync(string questionId, string title, string content, string? answer = null, string? scoring = null, CancellationToken cancellationToken = default)
+    {
+        await _lock.WaitAsync(cancellationToken);
+        try
+        {
+            if (!File.Exists(_questionFilePath))
+            {
+                return false;
+            }
+
+            JsonNode? existingRoot;
+            using (var existingStream = new FileStream(_questionFilePath, FileMode.Open, FileAccess.Read, FileShare.Read))
+            {
+                existingRoot = await JsonNode.ParseAsync(existingStream, cancellationToken: cancellationToken);
+            }
+
+            if (existingRoot is not JsonObject rootObject || rootObject["data"] is not JsonArray dataArray)
+            {
+                return false;
+            }
+
+            JsonObject? questionObject = null;
+            foreach (var node in dataArray)
+            {
+                if (node is not JsonObject obj)
+                {
+                    continue;
+                }
+
+                var id = obj["id"]?.GetValue<string>()?.Trim();
+                if (string.Equals(id, questionId, StringComparison.Ordinal))
+                {
+                    questionObject = obj;
+                    break;
+                }
+            }
+
+            if (questionObject is null)
+            {
+                return false;
+            }
+
+            questionObject["title"] = title;
+            questionObject["content"] = content;
+            questionObject["answer"] = answer ?? "";
+            questionObject["scoring"] = scoring ?? "";
+
+            var json = rootObject.ToJsonString(RelaxedIndentedJsonOptions);
+            await File.WriteAllTextAsync(_questionFilePath, json, new UTF8Encoding(false), cancellationToken);
+            return true;
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
     public async Task<(bool removed, bool deletedAttachments)> RemoveQuestionAsync(string questionId, CancellationToken cancellationToken = default)
     {
         var removed = false;

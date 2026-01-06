@@ -85,6 +85,7 @@ public sealed partial class LocalWebServer : IAsyncDisposable
         app.MapGet("/api/question/list", ListQuestionAsync);
         app.MapPost("/api/question/list", ListQuestionAsync);
         app.MapPost("/api/question/add", AddQuestionAsync);
+        app.MapPost("/api/question/update", UpdateQuestionAsync);
         app.MapPost("/api/question/remove", RemoveQuestionAsync);
         app.MapGet("/api/question/file/get", GetQuestionFileAsync);
         app.MapPost("/api/question/answer/save", SaveQuestionAnswerAsync);
