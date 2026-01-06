@@ -1774,11 +1774,14 @@
                     alert('请先在设置中配置服务商');
                     return;
                 }
-                if (!provider.host || !provider.host.trim()) {
+                const host = (qs('provider-host')?.value || '').trim();
+                const apiKey = (qs('provider-api-key')?.value || '').trim();
+
+                if (!host) {
                     alert('请先在设置中填写 Host');
                     return;
                 }
-                if (!provider.apiKey || !provider.apiKey.trim()) {
+                if (!apiKey) {
                     alert('请先在设置中填写 API Key');
                     return;
                 }
@@ -1787,9 +1790,9 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${provider.apiKey}`
+                        'Authorization': `Bearer ${apiKey}`
                     },
-                    body: JSON.stringify({ host: provider.host })
+                    body: JSON.stringify({ host })
                 });
 
                 if (!response.ok) {
@@ -2100,15 +2103,12 @@
                 const response = await fetch(`/api/model/test`, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${provider.apiKey}`
+                        'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        host: provider.host,
                         providerId: provider.id,
                         questionId: q.id,
                         model: model,
-                        messages: [{ role: 'user', content: q.content }],
                         stream: true
                     }),
                     signal: abortController.signal
