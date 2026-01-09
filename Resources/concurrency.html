@@ -1,0 +1,1021 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>并发压测 · Chat</title>
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --panel: rgba(17, 24, 39, 0.72);
+      --panel-2: rgba(15, 23, 42, 0.72);
+      --text: #e5e7eb;
+      --muted: #94a3b8;
+      --border: rgba(148, 163, 184, 0.18);
+      --primary: #10a37f;
+      --danger: #ef4444;
+      --warn: #f59e0b;
+      --shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+      --radius: 14px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      color: var(--text);
+      font-family: var(--sans);
+      background:
+        radial-gradient(1200px 900px at 10% 15%, rgba(16, 163, 127, 0.14), transparent 55%),
+        radial-gradient(1000px 800px at 85% 12%, rgba(59, 130, 246, 0.14), transparent 55%),
+        radial-gradient(900px 700px at 60% 90%, rgba(168, 85, 247, 0.10), transparent 55%),
+        var(--bg);
+      overflow: hidden;
+    }
+
+    button, input, select, textarea { font-family: inherit; color: var(--text); }
+
+    .app {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(17, 24, 39, 0.72);
+      backdrop-filter: blur(12px);
+    }
+
+    .brand {
+      font-weight: 800;
+      letter-spacing: 0.2px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .brand small {
+      color: var(--muted);
+      font-weight: 500;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: minmax(320px, 420px) 1fr;
+      gap: 14px;
+      padding: 14px;
+      overflow: hidden;
+    }
+
+    .card {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      min-height: 0;
+    }
+
+    .card-head {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      background: var(--panel-2);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .card-title {
+      font-weight: 800;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .card-body {
+      padding: 12px 14px;
+      overflow: auto;
+      min-height: 0;
+    }
+
+    .row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      width: 100%;
+    }
+
+    .field label {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .field input, .field select, .field textarea {
+      width: 100%;
+      background: rgba(2, 6, 23, 0.35);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px 12px;
+      outline: none;
+      font-size: 14px;
+      line-height: 1.4;
+    }
+
+    .field textarea {
+      resize: vertical;
+      min-height: 110px;
+      max-height: 44vh;
+    }
+
+    .field input:focus, .field select:focus, .field textarea:focus {
+      border-color: rgba(16, 163, 127, 0.55);
+      box-shadow: 0 0 0 4px rgba(16, 163, 127, 0.14);
+    }
+
+    .row .half { width: calc(50% - 5px); }
+    .row .third { width: calc(33.333% - 6.67px); }
+
+    .btn {
+      border: 1px solid var(--border);
+      background: rgba(2, 6, 23, 0.35);
+      border-radius: 12px;
+      padding: 10px 12px;
+      cursor: pointer;
+      transition: transform 0.06s ease, background 0.16s ease, border-color 0.16s ease;
+      min-height: 38px;
+    }
+
+    .btn:active { transform: translateY(1px); }
+    .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+    .btn.primary { border-color: rgba(16, 163, 127, 0.5); background: rgba(16, 163, 127, 0.18); }
+    .btn.danger { border-color: rgba(239, 68, 68, 0.5); background: rgba(239, 68, 68, 0.16); }
+
+    .hint { color: var(--muted); font-size: 12px; }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--muted);
+      min-width: 0;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 4px 8px;
+      font-size: 12px;
+      line-height: 1;
+      background: rgba(2, 6, 23, 0.35);
+      color: var(--text);
+    }
+
+    .badge.ok { border-color: rgba(16, 163, 127, 0.55); background: rgba(16, 163, 127, 0.14); }
+    .badge.err { border-color: rgba(239, 68, 68, 0.55); background: rgba(239, 68, 68, 0.12); }
+    .badge.run { border-color: rgba(245, 158, 11, 0.55); background: rgba(245, 158, 11, 0.12); }
+
+    .results {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 12px;
+    }
+
+    .result {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: rgba(2, 6, 23, 0.28);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      min-height: 180px;
+    }
+
+    .result-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(2, 6, 23, 0.18);
+      min-width: 0;
+    }
+
+    .result-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    .result-title .name {
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .result-title .meta {
+      color: var(--muted);
+      font-size: 12px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      min-width: 0;
+    }
+
+    .result-body {
+      padding: 10px 12px;
+      overflow: auto;
+      min-height: 0;
+    }
+
+    pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: var(--mono);
+      font-size: 12.5px;
+      line-height: 1.5;
+      color: rgba(226, 232, 240, 0.92);
+    }
+
+    @media (max-width: 980px) {
+      .main { grid-template-columns: 1fr; }
+      .row .half, .row .third { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="header">
+      <div class="brand">
+        并发压测
+        <small>通过 WPF 本地 API 并发发起 N 次请求</small>
+      </div>
+      <div class="status" id="globalStatus"></div>
+    </div>
+
+    <div class="main">
+      <section class="card">
+        <div class="card-head">
+          <div class="card-title">参数</div>
+          <div class="row" style="margin:0">
+            <button class="btn" id="refreshModelsBtn" type="button">刷新模型</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="field half">
+              <label for="providerSelect">服务商</label>
+              <select id="providerSelect"></select>
+            </div>
+            <div class="field half">
+              <label for="modelSelect">模型</label>
+              <select id="modelSelect"></select>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="field half">
+              <label for="concurrencyN">请求次数 N</label>
+              <input id="concurrencyN" type="number" min="1" max="500" value="4" />
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="field third">
+              <label for="maxTokens">max_tokens</label>
+              <input id="maxTokens" type="number" min="1" max="32768" value="256" />
+            </div>
+            <div class="field third">
+              <label for="temperature">temperature</label>
+              <input id="temperature" type="number" min="0" max="2" step="0.1" value="0.7" />
+            </div>
+            <div class="field third">
+              <label for="topP">top_p</label>
+              <input id="topP" type="number" min="0" max="1" step="0.05" value="1" />
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="field half">
+              <label for="streamToggle">stream</label>
+              <select id="streamToggle">
+                <option value="0">false</option>
+                <option value="1" selected>true</option>
+              </select>
+            </div>
+            <div class="field half">
+              <label for="systemPrompt">system（固定）</label>
+              <input id="systemPrompt" type="text" value="这是在做并发压力测试，本次是第N次请求。" disabled />
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="field">
+              <label for="promptInput">用户输入</label>
+              <textarea id="promptInput" placeholder="输入任意内容"></textarea>
+            </div>
+          </div>
+
+          <div class="row" style="margin-top: 12px;">
+            <button class="btn primary" id="startBtn" type="button">开始并发请求</button>
+            <button class="btn danger" id="stopBtn" type="button" disabled>停止全部</button>
+            <button class="btn" id="clearBtn" type="button">清空结果</button>
+          </div>
+          <div class="hint" id="hintLine"></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <div class="card-title">结果</div>
+          <div class="status" id="summaryLine"></div>
+        </div>
+        <div class="card-body">
+          <div class="results" id="resultsGrid"></div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    const els = {
+      globalStatus: document.getElementById('globalStatus'),
+      summaryLine: document.getElementById('summaryLine'),
+      hintLine: document.getElementById('hintLine'),
+
+      refreshModelsBtn: document.getElementById('refreshModelsBtn'),
+      providerSelect: document.getElementById('providerSelect'),
+      modelSelect: document.getElementById('modelSelect'),
+      concurrencyN: document.getElementById('concurrencyN'),
+
+      maxTokens: document.getElementById('maxTokens'),
+      temperature: document.getElementById('temperature'),
+      topP: document.getElementById('topP'),
+      streamToggle: document.getElementById('streamToggle'),
+      systemPrompt: document.getElementById('systemPrompt'),
+
+      promptInput: document.getElementById('promptInput'),
+      startBtn: document.getElementById('startBtn'),
+      stopBtn: document.getElementById('stopBtn'),
+      clearBtn: document.getElementById('clearBtn'),
+
+      resultsGrid: document.getElementById('resultsGrid')
+    };
+
+    const state = {
+      isRunning: false,
+      controllers: [],
+      runId: 0,
+      providers: [],
+      selectedProviderId: null,
+      loadTestQuestionId: null
+    };
+
+    function setGlobalStatus(text) {
+      els.globalStatus.textContent = text || '';
+    }
+
+    function setSummary(text) {
+      els.summaryLine.textContent = text || '';
+    }
+
+    function setHint(text) {
+      els.hintLine.textContent = text || '';
+    }
+
+    function setBusy(isBusy) {
+      state.isRunning = isBusy;
+      els.startBtn.disabled = isBusy;
+      els.stopBtn.disabled = !isBusy;
+      els.refreshModelsBtn.disabled = isBusy;
+      els.providerSelect.disabled = isBusy;
+      els.modelSelect.disabled = isBusy;
+      els.concurrencyN.disabled = isBusy;
+      els.maxTokens.disabled = isBusy;
+      els.temperature.disabled = isBusy;
+      els.topP.disabled = isBusy;
+      els.streamToggle.disabled = isBusy;
+      els.promptInput.disabled = isBusy;
+      els.clearBtn.disabled = isBusy;
+    }
+
+    function escapeText(text) {
+      const div = document.createElement('div');
+      div.textContent = text == null ? '' : String(text);
+      return div.textContent;
+    }
+
+    function nowMs() {
+      return (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+    }
+
+    function parseBool01(v) {
+      return String(v || '').trim() === '1';
+    }
+
+    function percentile(sorted, p) {
+      if (!sorted.length) return 0;
+      const idx = Math.min(sorted.length - 1, Math.max(0, Math.ceil((p / 100) * sorted.length) - 1));
+      return sorted[idx];
+    }
+
+    function nonce() {
+      try {
+        if (window.crypto?.randomUUID) return crypto.randomUUID();
+        if (window.crypto?.getRandomValues) {
+          const bytes = new Uint8Array(16);
+          crypto.getRandomValues(bytes);
+          let out = '';
+          for (const b of bytes) out += b.toString(16).padStart(2, '0');
+          return out;
+        }
+      } catch (e) { }
+      return String(Date.now()) + '-' + String(Math.random()).slice(2);
+    }
+
+    async function fetchJson(url, options) {
+      const res = await fetch(url, options);
+      const text = await res.text();
+      let json = null;
+      try { json = text ? JSON.parse(text) : null; } catch (e) { }
+      if (!res.ok) {
+        const msg = json?.message || json?.error?.message || text || ('HTTP ' + res.status);
+        throw new Error(msg);
+      }
+      return json;
+    }
+
+    function extractDeltaParts(json) {
+      const c0 = json?.choices?.[0];
+      if (!c0) return { content: '', reasoning: '' };
+      let content = '';
+      let reasoning = '';
+      if (typeof c0.text === 'string') content = c0.text;
+      if (typeof c0.delta?.content === 'string') content = c0.delta.content;
+      if (typeof c0.message?.content === 'string') content = c0.message.content;
+      if (typeof c0.delta?.reasoning_content === 'string') reasoning = c0.delta.reasoning_content;
+      if (typeof c0.message?.reasoning_content === 'string') reasoning = c0.message.reasoning_content;
+      if (typeof c0.reasoning_content === 'string') reasoning = c0.reasoning_content;
+      if (typeof json?.reasoning_content === 'string') reasoning = json.reasoning_content;
+      return { content, reasoning };
+    }
+
+    function extractUsage(json) {
+      const u = json?.usage;
+      if (!u) return null;
+      const promptTokens = typeof u.prompt_tokens === 'number' ? u.prompt_tokens : null;
+      const completionTokens = typeof u.completion_tokens === 'number' ? u.completion_tokens : null;
+      const totalTokens = typeof u.total_tokens === 'number' ? u.total_tokens : null;
+      if (promptTokens == null && completionTokens == null && totalTokens == null) return null;
+      return { promptTokens, completionTokens, totalTokens };
+    }
+
+    function extractTimings(json) {
+      const t = json?.timings;
+      if (!t) return null;
+      const predictedPerSecond = typeof t.predicted_per_second === 'number' ? t.predicted_per_second : null;
+      const predictedN = typeof t.predicted_n === 'number' ? t.predicted_n : null;
+      const predictedMs = typeof t.predicted_ms === 'number' ? t.predicted_ms : null;
+      if (predictedPerSecond == null && predictedN == null && predictedMs == null) return null;
+      return { predictedPerSecond, predictedN, predictedMs };
+    }
+
+    function computeTokensPerSecond(args) {
+      const timings = args?.timings || null;
+      const usage = args?.usage || null;
+      const elapsedMs = typeof args?.elapsedMs === 'number' ? args.elapsedMs : null;
+
+      if (timings?.predictedPerSecond != null && isFinite(timings.predictedPerSecond) && timings.predictedPerSecond > 0) {
+        return timings.predictedPerSecond;
+      }
+      if (timings?.predictedN != null && timings?.predictedMs != null && isFinite(timings.predictedN) && isFinite(timings.predictedMs) && timings.predictedMs > 0) {
+        return timings.predictedN / (timings.predictedMs / 1000);
+      }
+      if (usage?.completionTokens != null && elapsedMs != null && isFinite(usage.completionTokens) && isFinite(elapsedMs) && elapsedMs > 0) {
+        return usage.completionTokens / (elapsedMs / 1000);
+      }
+      return null;
+    }
+
+    async function consumeSseStream(res, onDelta) {
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let buffer = '';
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split(/\r?\n/);
+        buffer = lines.pop() || '';
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const data = line.slice(6).trim();
+          if (data === '[DONE]') return;
+          try {
+            const json = JSON.parse(data);
+            onDelta(json);
+          } catch (e) { }
+        }
+      }
+    }
+
+    function createResultCard(index) {
+      const el = document.createElement('div');
+      el.className = 'result';
+      el.dataset.index = String(index);
+
+      const head = document.createElement('div');
+      head.className = 'result-head';
+
+      const title = document.createElement('div');
+      title.className = 'result-title';
+
+      const name = document.createElement('div');
+      name.className = 'name';
+      name.textContent = '#' + String(index);
+
+      const meta = document.createElement('div');
+      meta.className = 'meta';
+      meta.textContent = '';
+
+      title.appendChild(name);
+      title.appendChild(meta);
+
+      const badge = document.createElement('span');
+      badge.className = 'badge run';
+      badge.textContent = 'RUN';
+
+      head.appendChild(title);
+      head.appendChild(badge);
+
+      const body = document.createElement('div');
+      body.className = 'result-body';
+      const pre = document.createElement('pre');
+      pre.textContent = '';
+      body.appendChild(pre);
+
+      el.appendChild(head);
+      el.appendChild(body);
+
+      els.resultsGrid.appendChild(el);
+
+      return { cardEl: el, badgeEl: badge, metaEl: meta, preEl: pre };
+    }
+
+    function clearResults() {
+      els.resultsGrid.innerHTML = '';
+      setSummary('');
+    }
+
+    function getSelectedProvider() {
+      if (!state.selectedProviderId) return null;
+      return state.providers.find(p => p && p.id === state.selectedProviderId) || null;
+    }
+
+    async function loadProviders() {
+      setGlobalStatus('加载配置中…');
+      let config = null;
+      try {
+        config = await fetchJson('/api/config/get', { method: 'GET' });
+      } catch (e) {
+        config = null;
+      }
+
+      const providers = Array.isArray(config?.providers) ? config.providers : [];
+      state.providers = providers;
+
+      const requestedProviderId = typeof config?.selectedProviderId === 'string' ? config.selectedProviderId : null;
+      if (requestedProviderId && providers.some(p => p && p.id === requestedProviderId)) {
+        state.selectedProviderId = requestedProviderId;
+      } else {
+        state.selectedProviderId = providers[0]?.id || null;
+      }
+
+      els.providerSelect.innerHTML = '';
+      if (!providers.length) {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = '未配置服务商（请先在主页设置）';
+        els.providerSelect.appendChild(opt);
+        els.providerSelect.disabled = true;
+        setGlobalStatus('未配置服务商');
+        return;
+      }
+
+      for (const p of providers) {
+        const id = (p?.id || '').trim();
+        if (!id) continue;
+        const name = (p?.name || '').trim();
+        const host = (p?.host || '').trim();
+        const opt = document.createElement('option');
+        opt.value = id;
+        opt.textContent = name || host || id;
+        els.providerSelect.appendChild(opt);
+      }
+
+      if (state.selectedProviderId) {
+        els.providerSelect.value = state.selectedProviderId;
+      }
+      els.providerSelect.disabled = false;
+      setGlobalStatus('就绪');
+    }
+
+    async function saveSelectionToConfig() {
+      let config = {};
+      try {
+        config = await fetchJson('/api/config/get', { method: 'GET' });
+      } catch {
+        config = {};
+      }
+      const payload = {
+        providers: Array.isArray(config?.providers) ? config.providers : state.providers,
+        selectedProviderId: state.selectedProviderId,
+        selectedModel: (els.modelSelect.value || '').trim() || null
+      };
+      try {
+        await fetchJson('/api/config/set', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+      } catch (e) {
+      }
+    }
+
+    async function refreshModels() {
+      const provider = getSelectedProvider();
+      if (!provider) {
+        els.modelSelect.innerHTML = '';
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = '请先选择服务商';
+        els.modelSelect.appendChild(opt);
+        els.modelSelect.disabled = true;
+        return;
+      }
+
+      const host = (provider.host || '').trim();
+      const apiKey = (provider.apiKey || '').trim();
+      if (!host) {
+        els.modelSelect.innerHTML = '';
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = '服务商未配置 Host（请先在主页设置）';
+        els.modelSelect.appendChild(opt);
+        els.modelSelect.disabled = true;
+        setGlobalStatus('服务商 Host 未配置');
+        return;
+      }
+
+      setGlobalStatus('加载模型中…');
+      try {
+        const headers = { 'Content-Type': 'application/json' };
+        if (apiKey) headers['Authorization'] = 'Bearer ' + apiKey;
+        const data = await fetchJson('/api/model/list', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ host })
+        });
+
+        const models = Array.isArray(data?.data) ? data.data : [];
+        const ids = models.map(m => m?.id).filter(x => typeof x === 'string' && x.trim()).map(x => x.trim());
+        ids.sort((a, b) => a.localeCompare(b));
+
+        const current = (els.modelSelect.value || '').trim();
+        els.modelSelect.innerHTML = '';
+        if (!ids.length) {
+          const opt = document.createElement('option');
+          opt.value = '';
+          opt.textContent = '未发现模型';
+          els.modelSelect.appendChild(opt);
+          els.modelSelect.disabled = true;
+          setGlobalStatus('未发现模型');
+          return;
+        }
+
+        for (const id of ids) {
+          const opt = document.createElement('option');
+          opt.value = id;
+          opt.textContent = id;
+          els.modelSelect.appendChild(opt);
+        }
+
+        if (current && ids.includes(current)) {
+          els.modelSelect.value = current;
+        } else {
+          els.modelSelect.value = ids[0];
+        }
+        els.modelSelect.disabled = false;
+        setGlobalStatus('就绪');
+        saveSelectionToConfig();
+      } catch (e) {
+        els.modelSelect.innerHTML = '';
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = '加载失败';
+        els.modelSelect.appendChild(opt);
+        els.modelSelect.disabled = true;
+        setGlobalStatus('模型加载失败：' + e.message);
+      }
+    }
+
+    async function ensureLoadTestQuestion() {
+      if (state.loadTestQuestionId) return state.loadTestQuestionId;
+      const title = '并发压测（自动）';
+
+      let list = null;
+      try {
+        list = await fetchJson('/api/question/list', { method: 'GET' });
+      } catch (e) {
+        list = null;
+      }
+
+      const items = Array.isArray(list?.data) ? list.data : [];
+      const existing = items.find(x => (x?.title || '').trim() === title);
+      const existingId = (existing?.id || '').trim();
+      if (existingId) {
+        state.loadTestQuestionId = existingId;
+        return existingId;
+      }
+
+      const created = await fetchJson('/api/question/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, content: '（自动创建的并发压测问题）' })
+      });
+      const newId = (created?.id || '').trim();
+      if (!newId) throw new Error('创建压测问题失败');
+      state.loadTestQuestionId = newId;
+      return newId;
+    }
+
+    async function updateLoadTestQuestionContent(content) {
+      const questionId = await ensureLoadTestQuestion();
+      const title = '并发压测（自动）';
+      await fetchJson('/api/question/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: questionId, title, content: String(content || '') })
+      });
+      return questionId;
+    }
+
+    function buildPromptText(rawUserText, runSeed, params) {
+      const base = (rawUserText == null ? '' : String(rawUserText)).trim();
+      return [
+        '这是在做并发压力测试。',
+        'RunSeed: ' + runSeed,
+        '',
+        base,
+        '',
+        '要求：请回复不超过 200 个字符。',
+        '参数（仅供参考）：max_tokens=' + String(params.max_tokens) + ', temperature=' + String(params.temperature) + ', top_p=' + String(params.top_p)
+      ].join('\n');
+    }
+
+    async function singleRequest(runId, index, cfg) {
+      const url = '/api/model/test';
+
+      const view = createResultCard(index);
+      const controller = new AbortController();
+      state.controllers.push(controller);
+
+      const startWall = Date.now();
+      const start = nowMs();
+      view.metaEl.textContent = '开始：' + new Date(startWall).toLocaleTimeString();
+
+      let text = '';
+      let reasoning = '';
+      let lastUsage = null;
+      let lastTimings = null;
+
+      function setResultStatus(kind, label) {
+        view.badgeEl.className = 'badge ' + kind;
+        view.badgeEl.textContent = label;
+      }
+
+      function render() {
+        const out = reasoning ? ('[reasoning]\n' + reasoning + '\n\n[content]\n' + text) : text;
+        view.preEl.textContent = out || '';
+      }
+
+      try {
+        const body = {
+          providerId: cfg.providerId,
+          questionId: cfg.questionId,
+          model: cfg.model,
+          stream: cfg.params.stream
+        };
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+          signal: controller.signal
+        });
+
+        if (runId !== state.runId) throw new Error('已被新任务替换');
+
+        if (!res.ok) {
+          const t = await res.text();
+          let msg = t;
+          try {
+            const j = t ? JSON.parse(t) : null;
+            msg = j?.message || j?.error?.message || t;
+          } catch (e) { }
+          throw new Error(msg || ('HTTP ' + res.status));
+        }
+
+        const ct = (res.headers.get('content-type') || '').toLowerCase();
+        if (ct.includes('text/event-stream')) {
+          await consumeSseStream(res, (json) => {
+            const parts = extractDeltaParts(json);
+            if (parts.reasoning) reasoning += parts.reasoning;
+            if (parts.content) text += parts.content;
+            const u = extractUsage(json);
+            if (u) lastUsage = u;
+            const t = extractTimings(json);
+            if (t) lastTimings = t;
+            render();
+          });
+        } else {
+          const data = await res.json();
+          const parts = extractDeltaParts(data);
+          text = parts.content || '';
+          reasoning = parts.reasoning || '';
+          lastUsage = extractUsage(data);
+          lastTimings = extractTimings(data);
+          render();
+        }
+
+        const elapsed = Math.max(0, nowMs() - start);
+        const tps = computeTokensPerSecond({ timings: lastTimings, usage: lastUsage, elapsedMs: elapsed });
+        const tMs = Math.round(elapsed);
+        const tpsInt = (tps != null && isFinite(tps)) ? Math.round(tps) : null;
+        view.metaEl.textContent = '耗时：' + tMs + 'ms' + (tpsInt != null ? (' · ' + tpsInt + ' token/s') : '');
+        setResultStatus('ok', 'OK');
+        return { ok: true, elapsedMs: elapsed, usage: lastUsage, timings: lastTimings, tokensPerSecond: tps };
+      } catch (e) {
+        const elapsed = Math.max(0, nowMs() - start);
+        const tMs = Math.round(elapsed);
+        view.metaEl.textContent = '耗时：' + tMs + 'ms';
+        if (e?.name === 'AbortError') {
+          setResultStatus('err', 'ABORT');
+          view.preEl.textContent = '[已停止]';
+          return { ok: false, aborted: true, elapsedMs: elapsed, error: 'Abort' };
+        }
+        setResultStatus('err', 'ERR');
+        view.preEl.textContent = '错误：' + escapeText(e?.message || String(e));
+        return { ok: false, aborted: false, elapsedMs: elapsed, error: e?.message || String(e) };
+      }
+    }
+
+    async function startRun() {
+      if (state.isRunning) return;
+      const providerId = (els.providerSelect.value || '').trim();
+      if (!providerId) {
+        setHint('请先在主页配置服务商，然后在此选择服务商');
+        return;
+      }
+      state.selectedProviderId = providerId;
+
+      const model = (els.modelSelect.value || '').trim();
+      if (!model) {
+        setHint('请先加载并选择模型');
+        return;
+      }
+      const promptText = (els.promptInput.value || '').trim();
+      if (!promptText) {
+        setHint('请输入要发送的内容');
+        return;
+      }
+
+      const n = Math.max(1, Math.min(500, Number(els.concurrencyN.value || 1)));
+      const params = {
+        max_tokens: Math.max(1, Number(els.maxTokens.value || 256)),
+        temperature: Number(els.temperature.value || 0.7),
+        top_p: Number(els.topP.value || 1),
+        stream: parseBool01(els.streamToggle.value)
+      };
+
+      clearResults();
+      setHint('');
+      setGlobalStatus('运行中…');
+      setBusy(true);
+
+      state.controllers = [];
+      state.runId += 1;
+      const runId = state.runId;
+
+      const runSeed = nonce();
+      let questionId = null;
+      try {
+        const content = buildPromptText(promptText, runSeed, params);
+        questionId = await updateLoadTestQuestionContent(content);
+      } catch (e) {
+        setHint('准备压测问题失败：' + (e?.message || String(e)));
+        setGlobalStatus('失败');
+        setBusy(false);
+        return;
+      }
+
+      const t0 = nowMs();
+      const promises = [];
+      for (let i = 1; i <= n; i++) {
+        promises.push(singleRequest(runId, i, { providerId, questionId, model, params }));
+      }
+
+      const settled = await Promise.allSettled(promises);
+      const t1 = nowMs();
+      const total = Math.max(0, t1 - t0);
+
+      const results = settled.map(s => (s.status === 'fulfilled' ? s.value : { ok: false, error: String(s.reason) }));
+      const ok = results.filter(r => r && r.ok).length;
+      const aborted = results.filter(r => r && r.aborted).length;
+      const err = results.length - ok - aborted;
+
+      const latencies = results.filter(r => r && typeof r.elapsedMs === 'number').map(r => r.elapsedMs).sort((a, b) => a - b);
+      const avg = latencies.length ? (latencies.reduce((a, b) => a + b, 0) / latencies.length) : 0;
+      const p50 = percentile(latencies, 50);
+      const p95 = percentile(latencies, 95);
+
+      const okUsages = results.filter(r => r && r.ok && r.usage && typeof r.usage.completionTokens === 'number');
+      const sumCompletionTokens = okUsages.reduce((acc, r) => acc + (r.usage.completionTokens || 0), 0);
+      const throughput = total > 0 ? (sumCompletionTokens / (total / 1000)) : 0;
+      const okTps = results.filter(r => r && r.ok && typeof r.tokensPerSecond === 'number' && isFinite(r.tokensPerSecond) && r.tokensPerSecond > 0).map(r => r.tokensPerSecond).sort((a, b) => a - b);
+      const tpsAvg = okTps.length ? (okTps.reduce((a, b) => a + b, 0) / okTps.length) : 0;
+      const tpsP50 = percentile(okTps, 50);
+      const tpsP95 = percentile(okTps, 95);
+
+      const tokSummary = sumCompletionTokens > 0
+        ? (' · 完成tok ' + sumCompletionTokens + ' · 吞吐 ' + throughput.toFixed(2) + ' tok/s')
+        : '';
+      const tpsSummary = okTps.length
+        ? (' · tok/s均值 ' + tpsAvg.toFixed(2) + ' · tok/s P50 ' + tpsP50.toFixed(2) + ' · tok/s P95 ' + tpsP95.toFixed(2))
+        : '';
+
+      setSummary('总耗时 ' + total.toFixed(1) + 'ms · OK ' + ok + ' · ERR ' + err + ' · ABORT ' + aborted + ' · 平均 ' + avg.toFixed(1) + 'ms · P50 ' + p50.toFixed(1) + 'ms · P95 ' + p95.toFixed(1) + 'ms' + tokSummary + tpsSummary);
+      setGlobalStatus('完成');
+      setBusy(false);
+      state.controllers = [];
+    }
+
+    function stopAll() {
+      for (const c of state.controllers) {
+        try { c.abort(); } catch (e) { }
+      }
+      state.controllers = [];
+    }
+
+    els.refreshModelsBtn.addEventListener('click', () => refreshModels());
+    els.providerSelect.addEventListener('change', () => {
+      const id = (els.providerSelect.value || '').trim();
+      state.selectedProviderId = id || null;
+      saveSelectionToConfig();
+      refreshModels();
+    });
+    els.modelSelect.addEventListener('change', () => saveSelectionToConfig());
+    els.clearBtn.addEventListener('click', () => clearResults());
+    els.startBtn.addEventListener('click', () => startRun());
+    els.stopBtn.addEventListener('click', () => stopAll());
+
+    els.promptInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) startRun();
+    });
+
+    document.addEventListener('DOMContentLoaded', () => {
+      loadProviders().then(() => refreshModels());
+    });
+  </script>
+</body>
+</html>

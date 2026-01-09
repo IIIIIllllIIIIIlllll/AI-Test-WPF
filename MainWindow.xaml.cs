@@ -20,6 +20,30 @@ public partial class MainWindow : Window
         Browser.Source = baseUri;
     }
 
+    private async void HomeButton_Click(object sender, RoutedEventArgs e)
+    {
+        await NavigateAsync(new Uri("/", UriKind.Relative));
+    }
+
+    private async void ConcurrencyButton_Click(object sender, RoutedEventArgs e)
+    {
+        await NavigateAsync(new Uri("concurrency.html", UriKind.Relative));
+    }
+
+    private async Task NavigateAsync(Uri relativeOrAbsoluteUri)
+    {
+        await Browser.EnsureCoreWebView2Async();
+
+        if (relativeOrAbsoluteUri.IsAbsoluteUri)
+        {
+            Browser.Source = relativeOrAbsoluteUri;
+            return;
+        }
+
+        var baseUri = App.LocalServerBaseUri ?? new Uri("about:blank");
+        Browser.Source = new Uri(baseUri, relativeOrAbsoluteUri);
+    }
+
     private void MainWindow_Closing(object? sender, CancelEventArgs e)
     {
         if (App.IsExiting)

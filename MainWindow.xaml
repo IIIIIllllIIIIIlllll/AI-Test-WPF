@@ -8,6 +8,18 @@
         mc:Ignorable="d"
         Title="LLM测试助手" Height="800" Width="1280">
     <Grid>
-        <wv2:WebView2 x:Name="Browser" />
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <ToolBarTray Grid.Row="0">
+            <ToolBar>
+                <Button x:Name="HomeButton" Content="主页" Click="HomeButton_Click" />
+                <Button x:Name="ConcurrencyButton" Content="并发压测" Click="ConcurrencyButton_Click" />
+            </ToolBar>
+        </ToolBarTray>
+
+        <wv2:WebView2 x:Name="Browser" Grid.Row="1" />
     </Grid>
 </Window>
