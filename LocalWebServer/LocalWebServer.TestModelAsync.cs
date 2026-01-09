@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Http;
 using AI_Test.Config;
 using AI_Test.OpenAI;
 using AI_Test.Question;
+using System.Diagnostics;
 
 namespace AI_Test.LocalWebServer;
 
@@ -302,10 +303,16 @@ public sealed partial class LocalWebServer
             {
                 new JsonObject
                 {
+                    ["role"] = "system",
+                    ["content"] = "你是一个考生，需要竭尽全力回答给出的问题。"
+                },
+                new JsonObject
+                {
                     ["role"] = "user",
                     ["content"] = contentParts
                 }
             },
+            ["temperature"] = 0.7,
             ["stream"] = streamRequested
         };
 
@@ -316,6 +323,7 @@ public sealed partial class LocalWebServer
         HttpResponseMessage forwardResponse;
         try
         {
+            Debug.WriteLine(payloadJson);
             forwardResponse = await ForwardPostJsonWithBearerAsync(context, forwardUri, payloadJson, apiKey!);
         }
         catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
@@ -394,7 +402,9 @@ public sealed partial class LocalWebServer
 
         foreach (var header in context.Request.Headers)
         {
-            if (ShouldSkipRequestHeader(header.Key) || header.Key.Equals("Authorization", StringComparison.OrdinalIgnoreCase))
+            if (ShouldSkipRequestHeader(header.Key)
+                || header.Key.Equals("Authorization", StringComparison.OrdinalIgnoreCase)
+                || header.Key.Equals("Content-Type", StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }

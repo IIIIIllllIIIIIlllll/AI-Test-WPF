@@ -160,7 +160,8 @@ public sealed partial class LocalWebServer : IAsyncDisposable
 
         foreach (var header in context.Request.Headers)
         {
-            if (ShouldSkipRequestHeader(header.Key))
+            if (ShouldSkipRequestHeader(header.Key)
+                || header.Key.Equals("Content-Type", StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
